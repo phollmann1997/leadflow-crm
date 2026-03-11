@@ -1,5 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// For Perplexity deploy, __PORT_5000__ gets replaced with a proxy path.
+// For Vercel, it stays as "__PORT_5000__" (starts with "__") so API_BASE = "" → relative paths.
 const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
 
 async function throwIfResNotOk(res: Response) {
