@@ -5,6 +5,7 @@ import {
   Building2,
   Kanban,
   Bell,
+  Search,
   LogOut,
   User,
 } from "lucide-react";
@@ -27,6 +28,7 @@ const navItems = [
   { title: "Firmy", url: "/firmy", icon: Building2 },
   { title: "Pipeline", url: "/pipeline", icon: Kanban },
   { title: "Follow-upy", url: "/followupy", icon: Bell },
+  { title: "Hledat leady", url: "/hledat", icon: Search },
 ];
 
 export function AppSidebar() {

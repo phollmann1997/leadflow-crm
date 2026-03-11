@@ -235,5 +235,42 @@ export async function registerRoutes(
     }
   });
 
+  // Lead Finder - ARES proxy
+  app.post("/api/ares/vyhledat", async (req, res) => {
+    try {
+      const { obchodniJmeno, ico, sidlo, start = 0, pocet = 20 } = req.body;
+      const body: any = { start, pocet };
+      if (obchodniJmeno) body.obchodniJmeno = obchodniJmeno;
+      if (ico) body.ico = ico;
+      if (sidlo?.kodKraje) body.sidlo = { kodKraje: sidlo.kodKraje };
+
+      const response = await fetch(
+        "https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/vyhledat",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify(body),
+        }
+      );
+      const data = await response.json();
+      return res.json(data);
+    } catch (error) {
+      return res.status(500).json({ error: "ARES hledání selhalo" });
+    }
+  });
+
+  app.get("/api/ares/subjekt/:ico", async (req, res) => {
+    try {
+      const response = await fetch(
+        `https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/${req.params.ico}`,
+        { headers: { "Accept": "application/json" } }
+      );
+      const data = await response.json();
+      return res.json(data);
+    } catch (error) {
+      return res.status(500).json({ error: "ARES detail selhal" });
+    }
+  });
+
   return httpServer;
 }

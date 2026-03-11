@@ -5,7 +5,7 @@ import {
   type Komunikace, type InsertKomunikace,
   type Followup, type InsertFollowup,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -35,166 +35,183 @@ export interface IStorage {
   deleteFollowup(id: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User> = new Map();
-  private firmyMap: Map<string, Firma> = new Map();
-  private kontaktyMap: Map<string, Kontakt> = new Map();
-  private komunikaceMap: Map<string, Komunikace> = new Map();
-  private followupyMap: Map<string, Followup> = new Map();
+// Helper: Supabase snake_case row → TypeScript camelCase
+function rowToUser(r: any): User {
+  return { id: r.id, username: r.username, password: r.password, fullName: r.full_name, email: r.email };
+}
+
+function rowToFirma(r: any): Firma {
+  return {
+    id: r.id, userId: r.user_id, nazev: r.nazev, ico: r.ico, web: r.web,
+    obor: r.obor, pocetZamestnancu: r.pocet_zamestnancu, ppisPodnikani: r.popis_podnikani,
+    adresa: r.adresa, poznamky: r.poznamky, zdroj: r.zdroj, stav: r.stav,
+    hodnotaDealu: r.hodnota_dealu, tagy: r.tagy,
+    createdAt: r.created_at ? new Date(r.created_at) : null,
+  };
+}
+
+function rowToKontakt(r: any): Kontakt {
+  return {
+    id: r.id, firmaId: r.firma_id, jmeno: r.jmeno, prijmeni: r.prijmeni,
+    pozice: r.pozice, email: r.email, telefon: r.telefon, linkedin: r.linkedin,
+    jePrimarni: r.je_primarni, poznamky: r.poznamky,
+    createdAt: r.created_at ? new Date(r.created_at) : null,
+  };
+}
+
+function rowToKomunikace(r: any): Komunikace {
+  return {
+    id: r.id, firmaId: r.firma_id, kontaktId: r.kontakt_id, userId: r.user_id,
+    typ: r.typ, smer: r.smer, predmet: r.predmet, obsah: r.obsah, odpoved: r.odpoved,
+    datum: r.datum ? new Date(r.datum) : null,
+    createdAt: r.created_at ? new Date(r.created_at) : null,
+  };
+}
+
+function rowToFollowup(r: any): Followup {
+  return {
+    id: r.id, firmaId: r.firma_id, userId: r.user_id, typ: r.typ, popis: r.popis,
+    datumPlan: r.datum_plan ? new Date(r.datum_plan) : new Date(),
+    splneno: r.splneno, splnenoDate: r.splneno_date ? new Date(r.splneno_date) : null,
+    priorita: r.priorita,
+    createdAt: r.created_at ? new Date(r.created_at) : null,
+  };
+}
+
+// Helper: camelCase InsertFirma → snake_case for Supabase
+function firmaToRow(data: Partial<InsertFirma>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (data.userId !== undefined) row.user_id = data.userId;
+  if (data.nazev !== undefined) row.nazev = data.nazev;
+  if (data.ico !== undefined) row.ico = data.ico;
+  if (data.web !== undefined) row.web = data.web;
+  if (data.obor !== undefined) row.obor = data.obor;
+  if (data.pocetZamestnancu !== undefined) row.pocet_zamestnancu = data.pocetZamestnancu;
+  if (data.ppisPodnikani !== undefined) row.popis_podnikani = data.ppisPodnikani;
+  if (data.adresa !== undefined) row.adresa = data.adresa;
+  if (data.poznamky !== undefined) row.poznamky = data.poznamky;
+  if (data.zdroj !== undefined) row.zdroj = data.zdroj;
+  if (data.stav !== undefined) row.stav = data.stav;
+  if (data.hodnotaDealu !== undefined) row.hodnota_dealu = data.hodnotaDealu;
+  if (data.tagy !== undefined) row.tagy = data.tagy;
+  return row;
+}
+
+function kontaktToRow(data: Partial<InsertKontakt>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (data.firmaId !== undefined) row.firma_id = data.firmaId;
+  if (data.jmeno !== undefined) row.jmeno = data.jmeno;
+  if (data.prijmeni !== undefined) row.prijmeni = data.prijmeni;
+  if (data.pozice !== undefined) row.pozice = data.pozice;
+  if (data.email !== undefined) row.email = data.email;
+  if (data.telefon !== undefined) row.telefon = data.telefon;
+  if (data.linkedin !== undefined) row.linkedin = data.linkedin;
+  if (data.jePrimarni !== undefined) row.je_primarni = data.jePrimarni;
+  if (data.poznamky !== undefined) row.poznamky = data.poznamky;
+  return row;
+}
+
+function komunikaceToRow(data: Partial<InsertKomunikace>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (data.firmaId !== undefined) row.firma_id = data.firmaId;
+  if (data.kontaktId !== undefined) row.kontakt_id = data.kontaktId;
+  if (data.userId !== undefined) row.user_id = data.userId;
+  if (data.typ !== undefined) row.typ = data.typ;
+  if (data.smer !== undefined) row.smer = data.smer;
+  if (data.predmet !== undefined) row.predmet = data.predmet;
+  if (data.obsah !== undefined) row.obsah = data.obsah;
+  if (data.odpoved !== undefined) row.odpoved = data.odpoved;
+  if (data.datum !== undefined) row.datum = data.datum instanceof Date ? data.datum.toISOString() : data.datum;
+  return row;
+}
+
+function followupToRow(data: Partial<InsertFollowup & { splneno?: boolean; splnenoDate?: Date | null }>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (data.firmaId !== undefined) row.firma_id = data.firmaId;
+  if (data.userId !== undefined) row.user_id = data.userId;
+  if (data.typ !== undefined) row.typ = data.typ;
+  if (data.popis !== undefined) row.popis = data.popis;
+  if (data.datumPlan !== undefined) row.datum_plan = data.datumPlan instanceof Date ? data.datumPlan.toISOString() : data.datumPlan;
+  if (data.splneno !== undefined) row.splneno = data.splneno;
+  if (data.splnenoDate !== undefined) row.splneno_date = data.splnenoDate instanceof Date ? data.splnenoDate.toISOString() : data.splnenoDate;
+  if (data.priorita !== undefined) row.priorita = data.priorita;
+  return row;
+}
+
+
+export class SupabaseStorage implements IStorage {
+  private supabase: SupabaseClient;
 
   constructor() {
-    this.seedData();
+    const url = process.env.SUPABASE_URL || "https://ajbvjnqpxoqsvlmwpxxu.supabase.co";
+    const key = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqYnZqbnFweG9xc3ZsbXdweHh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNDA0NjUsImV4cCI6MjA4ODgxNjQ2NX0.1Fqrj3wb9ezl65Yop7AjGoa9_5N5cMG-AenD9xlV75k";
+    this.supabase = createClient(url, key);
   }
 
-  private seedData() {
-    const demoUser: User = {
-      id: "demo-user-1",
-      username: "petr",
-      password: "heslo123",
-      fullName: "Petr Hollmann",
-      email: "petr.hollmann@gmail.com",
-    };
-    this.users.set(demoUser.id, demoUser);
-
-    // Seed firmy
-    const firmy: Firma[] = [
-      {
-        id: "f1", userId: "demo-user-1", nazev: "Transfaktoring a.s.", ico: "28501187",
-        web: "https://transfaktoring.cz", obor: "faktoring", pocetZamestnancu: "5-10",
-        ppisPodnikani: "Faktoringová společnost, zpracovávají velké množství faktur a smluv o postoupení pohledávek.",
-        adresa: "Praha", poznamky: "Stávající klient. Platí měsíčně za extrakci faktur. Rozšiřujeme o RAG analýzu smluv.",
-        zdroj: "doporuceni", stav: "zakaznik", hodnotaDealu: 15000, tagy: "aktivni,faktoring,rag",
-        createdAt: new Date("2026-01-10"),
-      },
-      {
-        id: "f2", userId: "demo-user-1", nazev: "BNP Paribas Faktoring", ico: "27248186",
-        web: "https://factoringkb.cz", obor: "faktoring", pocetZamestnancu: "20-30",
-        ppisPodnikani: "Velká faktoringová společnost, součást skupiny BNP. Zpracovávají tisíce faktur měsíčně.",
-        adresa: "Praha 1", poznamky: "Velký potenciál, ale delší sales cycle. Kontaktovat přes LinkedIn.",
-        zdroj: "linkedin", stav: "osloven", hodnotaDealu: 50000, tagy: "enterprise,faktoring",
-        createdAt: new Date("2026-02-15"),
-      },
-      {
-        id: "f3", userId: "demo-user-1", nazev: "Malá účetní s.r.o.", ico: "12345678",
-        web: null, obor: "ucetnictvi", pocetZamestnancu: "3-5",
-        ppisPodnikani: "Účetní kancelář, zpracovávají doklady pro 50+ klientů. Ruční přepis faktur.",
-        adresa: "Liberec", poznamky: "Referral od kamaráda. Ideální profil - malá firma, hodně dokumentů.",
-        zdroj: "doporuceni", stav: "schuzka", hodnotaDealu: 8000, tagy: "ucetnictvi,liberec",
-        createdAt: new Date("2026-02-20"),
-      },
-      {
-        id: "f4", userId: "demo-user-1", nazev: "FastLogistics s.r.o.", ico: "98765432",
-        web: "https://fastlogistics.cz", obor: "logistika", pocetZamestnancu: "10-15",
-        ppisPodnikani: "Spediční firma, přepravní dokumenty, CMR listy, dodací listy.",
-        adresa: "Brno", poznamky: "Našel jsem je přes ARES. Hodně papírů, ale nevím jestli mají budget.",
-        zdroj: "ares", stav: "novy", hodnotaDealu: 12000, tagy: "logistika,brno",
-        createdAt: new Date("2026-03-01"),
-      },
-      {
-        id: "f5", userId: "demo-user-1", nazev: "Broker Capital a.s.", ico: "55667788",
-        web: "https://brokercapital.cz", obor: "makler", pocetZamestnancu: "5-10",
-        ppisPodnikani: "Finanční makléř, zpracovávají pojistné smlouvy a finanční dokumenty.",
-        adresa: "Praha 5", poznamky: "Odpověděli na cold email. Chtějí demo v březnu.",
-        zdroj: "cold_email", stav: "odpovezel", hodnotaDealu: 20000, tagy: "makler,demo",
-        createdAt: new Date("2026-02-25"),
-      },
-      {
-        id: "f6", userId: "demo-user-1", nazev: "Česká správa nemovitostí", ico: "44556677",
-        web: null, obor: "jine", pocetZamestnancu: "15-20",
-        ppisPodnikani: "Správa nemovitostí, nájemní smlouvy, předávací protokoly.",
-        adresa: "Plzeň", poznamky: "Mají zájem ale čekají na rozpočet Q2.",
-        zdroj: "cold_call", stav: "nabidka", hodnotaDealu: 25000, tagy: "nemovitosti",
-        createdAt: new Date("2026-02-10"),
-      },
-    ];
-
-    for (const f of firmy) this.firmyMap.set(f.id, f);
-
-    // Seed kontakty
-    const kontakty: Kontakt[] = [
-      { id: "k1", firmaId: "f1", jmeno: "Tomáš", prijmeni: "Novotný", pozice: "Jednatel", email: "novotny@transfaktoring.cz", telefon: "+420 602 111 222", linkedin: null, jePrimarni: true, poznamky: "Hlavní kontakt, rozhoduje o rozpočtu", createdAt: new Date() },
-      { id: "k2", firmaId: "f2", jmeno: "Markéta", prijmeni: "Dvořáková", pozice: "Head of Operations", email: "dvorakova@factoringkb.cz", telefon: null, linkedin: "https://linkedin.com/in/dvorakova", jePrimarni: true, poznamky: "Kontaktována přes LinkedIn", createdAt: new Date() },
-      { id: "k3", firmaId: "f3", jmeno: "Jana", prijmeni: "Procházková", pozice: "Jednatelka", email: "jana@malaucteni.cz", telefon: "+420 603 333 444", linkedin: null, jePrimarni: true, poznamky: "Velmi vstřícná, nadšená z automatizace", createdAt: new Date() },
-      { id: "k4", firmaId: "f4", jmeno: "Petr", prijmeni: "Kučera", pozice: "Provozní ředitel", email: "kucera@fastlogistics.cz", telefon: "+420 604 555 666", linkedin: null, jePrimarni: true, poznamky: null, createdAt: new Date() },
-      { id: "k5", firmaId: "f5", jmeno: "Martin", prijmeni: "Šťastný", pozice: "CEO", email: "stastny@brokercapital.cz", telefon: "+420 605 777 888", linkedin: "https://linkedin.com/in/stastny", jePrimarni: true, poznamky: "Odpověděl na cold email, chtěl demo", createdAt: new Date() },
-      { id: "k6", firmaId: "f6", jmeno: "Alena", prijmeni: "Malá", pozice: "Office Manager", email: "mala@csn.cz", telefon: "+420 606 999 000", linkedin: null, jePrimarni: true, poznamky: "Kontakt od kolegy. Připravit nabídku.", createdAt: new Date() },
-    ];
-
-    for (const k of kontakty) this.kontaktyMap.set(k.id, k);
-
-    // Seed komunikace
-    const komunikace: Komunikace[] = [
-      { id: "com1", firmaId: "f2", kontaktId: "k2", userId: "demo-user-1", typ: "linkedin", smer: "odchozi", predmet: "Úvodní zpráva na LinkedIn", obsah: "Dobrý den, kontaktuji vás ohledně automatizace zpracování faktur...", odpoved: null, datum: new Date("2026-02-15"), createdAt: new Date("2026-02-15") },
-      { id: "com2", firmaId: "f3", kontaktId: "k3", userId: "demo-user-1", typ: "telefon", smer: "odchozi", predmet: "Úvodní hovor", obsah: "Volal jsem, domluvili jsme schůzku na 15.3.", odpoved: "Má zájem, chce vidět demo. Schůzka 15.3. v 10:00.", datum: new Date("2026-03-05"), createdAt: new Date("2026-03-05") },
-      { id: "com3", firmaId: "f5", kontaktId: "k5", userId: "demo-user-1", typ: "email", smer: "odchozi", predmet: "AlgoMat - automatizace dokumentů", obsah: "Cold email s představením služby", odpoved: "Děkuji, zní to zajímavě. Můžeme si domluvit krátký call?", datum: new Date("2026-02-28"), createdAt: new Date("2026-02-28") },
-      { id: "com4", firmaId: "f6", kontaktId: "k6", userId: "demo-user-1", typ: "telefon", smer: "prichozi", predmet: "Dotaz na cenu", obsah: "Alena volala, ptala se na ceník a možnosti integrace.", odpoved: null, datum: new Date("2026-03-08"), createdAt: new Date("2026-03-08") },
-      { id: "com5", firmaId: "f6", kontaktId: "k6", userId: "demo-user-1", typ: "email", smer: "odchozi", predmet: "Cenová nabídka", obsah: "Odeslána cenová nabídka na zpracování nájemních smluv.", odpoved: null, datum: new Date("2026-03-09"), createdAt: new Date("2026-03-09") },
-    ];
-
-    for (const c of komunikace) this.komunikaceMap.set(c.id, c);
-
-    // Seed followupy
-    const followupy: Followup[] = [
-      { id: "fu1", firmaId: "f2", userId: "demo-user-1", typ: "linkedin", popis: "Follow-up na LinkedIn zprávu, připomenout se", datumPlan: new Date("2026-03-12"), splneno: false, splnenoDate: null, priorita: "stredni", createdAt: new Date() },
-      { id: "fu2", firmaId: "f3", userId: "demo-user-1", typ: "schuzka", popis: "Schůzka s Janou - demo AlgoMat", datumPlan: new Date("2026-03-15"), splneno: false, splnenoDate: null, priorita: "vysoka", createdAt: new Date() },
-      { id: "fu3", firmaId: "f4", userId: "demo-user-1", typ: "email", popis: "Poslat úvodní email Petru Kučerovi", datumPlan: new Date("2026-03-11"), splneno: false, splnenoDate: null, priorita: "stredni", createdAt: new Date() },
-      { id: "fu4", firmaId: "f5", userId: "demo-user-1", typ: "telefon", popis: "Zavolat Martinovi, domluvit termín dema", datumPlan: new Date("2026-03-13"), splneno: false, splnenoDate: null, priorita: "vysoka", createdAt: new Date() },
-      { id: "fu5", firmaId: "f6", userId: "demo-user-1", typ: "email", popis: "Follow-up na cenovou nabídku - ptát se na rozpočet", datumPlan: new Date("2026-03-18"), splneno: false, splnenoDate: null, priorita: "nizka", createdAt: new Date() },
-      { id: "fu6", firmaId: "f1", userId: "demo-user-1", typ: "schuzka", popis: "Prezentace RAG analýzy smluv pro TRFA", datumPlan: new Date("2026-03-20"), splneno: false, splnenoDate: null, priorita: "vysoka", createdAt: new Date() },
-    ];
-
-    for (const f of followupy) this.followupyMap.set(f.id, f);
+  // ========== Users ==========
+  async getUser(id: string): Promise<User | undefined> {
+    const { data } = await this.supabase.from("users").select("*").eq("id", id).single();
+    return data ? rowToUser(data) : undefined;
   }
 
-  // Users
-  async getUser(id: string): Promise<User | undefined> { return this.users.get(id); }
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(u => u.username === username);
-  }
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { id, ...insertUser };
-    this.users.set(id, user);
-    return user;
+    const { data } = await this.supabase.from("users").select("*").eq("username", username).single();
+    return data ? rowToUser(data) : undefined;
   }
 
-  // Firmy
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const { data, error } = await this.supabase.from("users").insert({
+      username: insertUser.username,
+      password: insertUser.password,
+      full_name: insertUser.fullName,
+      email: insertUser.email,
+    }).select().single();
+    if (error) throw new Error(`Failed to create user: ${error.message}`);
+    return rowToUser(data);
+  }
+
+  // ========== Firmy ==========
   async getFirmy(userId: string): Promise<Firma[]> {
-    return Array.from(this.firmyMap.values())
-      .filter(f => f.userId === userId)
-      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+    const { data } = await this.supabase
+      .from("firmy").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    return (data ?? []).map(rowToFirma);
   }
-  async getFirma(id: string): Promise<Firma | undefined> { return this.firmyMap.get(id); }
-  async createFirma(data: InsertFirma): Promise<Firma> {
-    const id = randomUUID();
-    const firma: Firma = {
-      id, userId: data.userId, nazev: data.nazev, ico: data.ico ?? null,
-      web: data.web ?? null, obor: data.obor ?? "jine", pocetZamestnancu: data.pocetZamestnancu ?? null,
-      ppisPodnikani: data.ppisPodnikani ?? null, adresa: data.adresa ?? null,
-      poznamky: data.poznamky ?? null, zdroj: data.zdroj ?? "jine", stav: data.stav ?? "novy",
-      hodnotaDealu: data.hodnotaDealu ?? 0, tagy: data.tagy ?? null, createdAt: new Date(),
-    };
-    this.firmyMap.set(id, firma);
-    return firma;
+
+  async getFirma(id: string): Promise<Firma | undefined> {
+    const { data } = await this.supabase.from("firmy").select("*").eq("id", id).single();
+    return data ? rowToFirma(data) : undefined;
   }
+
+  async createFirma(insertData: InsertFirma): Promise<Firma> {
+    const row = firmaToRow(insertData);
+    const { data, error } = await this.supabase.from("firmy").insert(row).select().single();
+    if (error) throw new Error(`Failed to create firma: ${error.message}`);
+    return rowToFirma(data);
+  }
+
   async updateFirma(id: string, updates: Partial<InsertFirma>): Promise<Firma | undefined> {
-    const f = this.firmyMap.get(id);
-    if (!f) return undefined;
-    const updated = { ...f, ...updates } as Firma;
-    this.firmyMap.set(id, updated);
-    return updated;
+    const row = firmaToRow(updates);
+    const { data, error } = await this.supabase.from("firmy").update(row).eq("id", id).select().single();
+    if (error) return undefined;
+    return data ? rowToFirma(data) : undefined;
   }
+
   async deleteFirma(id: string): Promise<boolean> {
-    // cascade delete kontakty, komunikace, followupy
-    for (const [kid, k] of this.kontaktyMap) { if (k.firmaId === id) this.kontaktyMap.delete(kid); }
-    for (const [cid, c] of this.komunikaceMap) { if (c.firmaId === id) this.komunikaceMap.delete(cid); }
-    for (const [fid, f] of this.followupyMap) { if (f.firmaId === id) this.followupyMap.delete(fid); }
-    return this.firmyMap.delete(id);
+    // cascade: delete kontakty, komunikace, followupy for this firma
+    await this.supabase.from("kontakty").delete().eq("firma_id", id);
+    await this.supabase.from("komunikace").delete().eq("firma_id", id);
+    await this.supabase.from("followupy").delete().eq("firma_id", id);
+    const { error } = await this.supabase.from("firmy").delete().eq("id", id);
+    return !error;
   }
+
   async searchFirmy(userId: string, query: string): Promise<Firma[]> {
     const q = query.toLowerCase();
-    return Array.from(this.firmyMap.values()).filter(f => {
-      if (f.userId !== userId) return false;
+    // Supabase doesn't support OR across multiple columns easily with ilike,
+    // so fetch all user's firmy and filter in memory (small dataset)
+    const { data } = await this.supabase.from("firmy").select("*").eq("user_id", userId);
+    const all = (data ?? []).map(rowToFirma);
+    return all.filter(f => {
       return f.nazev.toLowerCase().includes(q) ||
         (f.ico?.includes(q) ?? false) ||
         (f.obor?.toLowerCase().includes(q) ?? false) ||
@@ -204,78 +221,81 @@ export class MemStorage implements IStorage {
     });
   }
 
-  // Kontakty
+  // ========== Kontakty ==========
   async getKontakty(firmaId: string): Promise<Kontakt[]> {
-    return Array.from(this.kontaktyMap.values()).filter(k => k.firmaId === firmaId);
+    const { data } = await this.supabase.from("kontakty").select("*").eq("firma_id", firmaId);
+    return (data ?? []).map(rowToKontakt);
   }
-  async createKontakt(data: InsertKontakt): Promise<Kontakt> {
-    const id = randomUUID();
-    const k: Kontakt = {
-      id, firmaId: data.firmaId, jmeno: data.jmeno, prijmeni: data.prijmeni,
-      pozice: data.pozice ?? null, email: data.email ?? null, telefon: data.telefon ?? null,
-      linkedin: data.linkedin ?? null, jePrimarni: data.jePrimarni ?? true,
-      poznamky: data.poznamky ?? null, createdAt: new Date(),
-    };
-    this.kontaktyMap.set(id, k);
-    return k;
+
+  async createKontakt(insertData: InsertKontakt): Promise<Kontakt> {
+    const row = kontaktToRow(insertData);
+    const { data, error } = await this.supabase.from("kontakty").insert(row).select().single();
+    if (error) throw new Error(`Failed to create kontakt: ${error.message}`);
+    return rowToKontakt(data);
   }
+
   async updateKontakt(id: string, updates: Partial<InsertKontakt>): Promise<Kontakt | undefined> {
-    const k = this.kontaktyMap.get(id);
-    if (!k) return undefined;
-    const updated = { ...k, ...updates } as Kontakt;
-    this.kontaktyMap.set(id, updated);
-    return updated;
+    const row = kontaktToRow(updates);
+    const { data, error } = await this.supabase.from("kontakty").update(row).eq("id", id).select().single();
+    if (error) return undefined;
+    return data ? rowToKontakt(data) : undefined;
   }
-  async deleteKontakt(id: string): Promise<boolean> { return this.kontaktyMap.delete(id); }
 
-  // Komunikace
+  async deleteKontakt(id: string): Promise<boolean> {
+    const { error } = await this.supabase.from("kontakty").delete().eq("id", id);
+    return !error;
+  }
+
+  // ========== Komunikace ==========
   async getKomunikace(firmaId: string): Promise<Komunikace[]> {
-    return Array.from(this.komunikaceMap.values())
-      .filter(c => c.firmaId === firmaId)
-      .sort((a, b) => (b.datum?.getTime() ?? 0) - (a.datum?.getTime() ?? 0));
+    const { data } = await this.supabase
+      .from("komunikace").select("*").eq("firma_id", firmaId).order("datum", { ascending: false });
+    return (data ?? []).map(rowToKomunikace);
   }
-  async createKomunikace(data: InsertKomunikace): Promise<Komunikace> {
-    const id = randomUUID();
-    const c: Komunikace = {
-      id, firmaId: data.firmaId, kontaktId: data.kontaktId ?? null,
-      userId: data.userId, typ: data.typ, smer: data.smer ?? "odchozi",
-      predmet: data.predmet, obsah: data.obsah ?? null, odpoved: data.odpoved ?? null,
-      datum: data.datum ?? new Date(), createdAt: new Date(),
-    };
-    this.komunikaceMap.set(id, c);
-    return c;
-  }
-  async deleteKomunikace(id: string): Promise<boolean> { return this.komunikaceMap.delete(id); }
 
-  // Followupy
+  async createKomunikace(insertData: InsertKomunikace): Promise<Komunikace> {
+    const row = komunikaceToRow(insertData);
+    const { data, error } = await this.supabase.from("komunikace").insert(row).select().single();
+    if (error) throw new Error(`Failed to create komunikace: ${error.message}`);
+    return rowToKomunikace(data);
+  }
+
+  async deleteKomunikace(id: string): Promise<boolean> {
+    const { error } = await this.supabase.from("komunikace").delete().eq("id", id);
+    return !error;
+  }
+
+  // ========== Followupy ==========
   async getFollowupy(userId: string): Promise<Followup[]> {
-    return Array.from(this.followupyMap.values())
-      .filter(f => f.userId === userId)
-      .sort((a, b) => (a.datumPlan?.getTime() ?? 0) - (b.datumPlan?.getTime() ?? 0));
+    const { data } = await this.supabase
+      .from("followupy").select("*").eq("user_id", userId).order("datum_plan", { ascending: true });
+    return (data ?? []).map(rowToFollowup);
   }
+
   async getFollowupyByFirma(firmaId: string): Promise<Followup[]> {
-    return Array.from(this.followupyMap.values())
-      .filter(f => f.firmaId === firmaId)
-      .sort((a, b) => (a.datumPlan?.getTime() ?? 0) - (b.datumPlan?.getTime() ?? 0));
+    const { data } = await this.supabase
+      .from("followupy").select("*").eq("firma_id", firmaId).order("datum_plan", { ascending: true });
+    return (data ?? []).map(rowToFollowup);
   }
-  async createFollowup(data: InsertFollowup): Promise<Followup> {
-    const id = randomUUID();
-    const f: Followup = {
-      id, firmaId: data.firmaId, userId: data.userId, typ: data.typ,
-      popis: data.popis, datumPlan: data.datumPlan, splneno: data.splneno ?? false,
-      splnenoDate: null, priorita: data.priorita ?? "stredni", createdAt: new Date(),
-    };
-    this.followupyMap.set(id, f);
-    return f;
+
+  async createFollowup(insertData: InsertFollowup): Promise<Followup> {
+    const row = followupToRow(insertData);
+    const { data, error } = await this.supabase.from("followupy").insert(row).select().single();
+    if (error) throw new Error(`Failed to create followup: ${error.message}`);
+    return rowToFollowup(data);
   }
-  async updateFollowup(id: string, updates: any): Promise<Followup | undefined> {
-    const f = this.followupyMap.get(id);
-    if (!f) return undefined;
-    const updated = { ...f, ...updates } as Followup;
-    this.followupyMap.set(id, updated);
-    return updated;
+
+  async updateFollowup(id: string, updates: Partial<InsertFollowup & { splneno?: boolean; splnenoDate?: Date | null }>): Promise<Followup | undefined> {
+    const row = followupToRow(updates);
+    const { data, error } = await this.supabase.from("followupy").update(row).eq("id", id).select().single();
+    if (error) return undefined;
+    return data ? rowToFollowup(data) : undefined;
   }
-  async deleteFollowup(id: string): Promise<boolean> { return this.followupyMap.delete(id); }
+
+  async deleteFollowup(id: string): Promise<boolean> {
+    const { error } = await this.supabase.from("followupy").delete().eq("id", id);
+    return !error;
+  }
 }
 
-export const storage = new MemStorage();
+export const storage = new SupabaseStorage();

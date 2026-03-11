@@ -18,6 +18,7 @@ import FirmyPage from "@/pages/firmy";
 import FirmaDetailPage from "@/pages/firma-detail";
 import PipelinePage from "@/pages/pipeline";
 import FollowupyPage from "@/pages/followupy";
+import LeadFinderPage from "@/pages/lead-finder";
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
@@ -41,6 +42,7 @@ function AppRouter() {
       <Route path="/firmy/:id" component={FirmaDetailPage} />
       <Route path="/pipeline" component={PipelinePage} />
       <Route path="/followupy" component={FollowupyPage} />
+      <Route path="/hledat" component={LeadFinderPage} />
       <Route component={NotFound} />
     </Switch>
   );
