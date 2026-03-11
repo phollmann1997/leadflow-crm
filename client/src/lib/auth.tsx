@@ -23,20 +23,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Login failed");
-      }
-      const userData = await res.json();
-      setUser(userData);
+      if (!res.ok) throw new Error("Neplatné přihlašovací údaje");
+      setUser(await res.json());
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-  }, []);
+  const logout = useCallback(() => setUser(null), []);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading }}>

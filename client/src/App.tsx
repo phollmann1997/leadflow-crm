@@ -14,9 +14,10 @@ import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
-import LeadsPage from "@/pages/leads";
-import LeadDetailPage from "@/pages/lead-detail";
+import FirmyPage from "@/pages/firmy";
+import FirmaDetailPage from "@/pages/firma-detail";
 import PipelinePage from "@/pages/pipeline";
+import FollowupyPage from "@/pages/followupy";
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
@@ -36,9 +37,10 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={DashboardPage} />
-      <Route path="/leads" component={LeadsPage} />
-      <Route path="/leads/:id" component={LeadDetailPage} />
+      <Route path="/firmy" component={FirmyPage} />
+      <Route path="/firmy/:id" component={FirmaDetailPage} />
       <Route path="/pipeline" component={PipelinePage} />
+      <Route path="/followupy" component={FollowupyPage} />
       <Route component={NotFound} />
     </Switch>
   );

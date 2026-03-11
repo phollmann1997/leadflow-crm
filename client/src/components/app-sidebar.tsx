@@ -2,8 +2,9 @@ import { useLocation, Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import {
   LayoutDashboard,
-  Users,
+  Building2,
   Kanban,
+  Bell,
   LogOut,
   User,
 } from "lucide-react";
@@ -22,9 +23,10 @@ import {
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Leads", url: "/leads", icon: Users },
+  { title: "Přehled", url: "/", icon: LayoutDashboard },
+  { title: "Firmy", url: "/firmy", icon: Building2 },
   { title: "Pipeline", url: "/pipeline", icon: Kanban },
+  { title: "Follow-upy", url: "/followupy", icon: Bell },
 ];
 
 export function AppSidebar() {
@@ -36,17 +38,17 @@ export function AppSidebar() {
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
-            <Users className="h-4 w-4 text-primary-foreground" />
+            <Building2 className="h-4 w-4 text-primary-foreground" />
           </div>
           <div>
             <p className="text-sm font-semibold">LeadFlow</p>
-            <p className="text-[10px] text-muted-foreground">CRM</p>
+            <p className="text-[10px] text-muted-foreground">AlgoMat CRM</p>
           </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>Navigace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
@@ -87,7 +89,7 @@ export function AppSidebar() {
           onClick={logout}
         >
           <LogOut className="h-4 w-4 mr-2" />
-          Sign Out
+          Odhlásit se
         </Button>
       </SidebarFooter>
     </Sidebar>

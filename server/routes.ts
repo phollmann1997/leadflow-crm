@@ -1,198 +1,237 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertLeadSchema, insertActivitySchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  // ---- Auth / User routes ----
+  // Auth
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password } = req.body;
       const user = await storage.getUserByUsername(username);
       if (!user || user.password !== password) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        return res.status(401).json({ error: "Neplatné přihlašovací údaje" });
       }
       const { password: _, ...safeUser } = user;
       return res.json(safeUser);
     } catch (error) {
-      return res.status(500).json({ error: "Login failed" });
+      return res.status(500).json({ error: "Přihlášení selhalo" });
     }
   });
 
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const { username, password, fullName, email, company, role } = req.body;
-      const existing = await storage.getUserByUsername(username);
-      if (existing) {
-        return res.status(409).json({ error: "Username already exists" });
-      }
-      const user = await storage.createUser({ username, password, fullName, email, company, role });
-      const { password: _, ...safeUser } = user;
-      return res.json(safeUser);
-    } catch (error) {
-      return res.status(500).json({ error: "Registration failed" });
-    }
-  });
-
-  app.get("/api/users/:id", async (req, res) => {
-    try {
-      const user = await storage.getUser(req.params.id);
-      if (!user) return res.status(404).json({ error: "User not found" });
-      const { password: _, ...safeUser } = user;
-      return res.json(safeUser);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch user" });
-    }
-  });
-
-  // ---- Lead routes ----
-  app.get("/api/leads", async (req, res) => {
+  // Firmy
+  app.get("/api/firmy", async (req, res) => {
     try {
       const userId = req.query.userId as string;
-      if (!userId) return res.status(400).json({ error: "userId is required" });
+      if (!userId) return res.status(400).json({ error: "userId required" });
       const search = req.query.search as string;
-      let leads;
-      if (search) {
-        leads = await storage.searchLeads(userId, search);
-      } else {
-        leads = await storage.getLeads(userId);
-      }
-      return res.json(leads);
+      const firmy = search
+        ? await storage.searchFirmy(userId, search)
+        : await storage.getFirmy(userId);
+      return res.json(firmy);
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch leads" });
+      return res.status(500).json({ error: "Chyba při načítání firem" });
     }
   });
 
-  app.get("/api/leads/:id", async (req, res) => {
+  app.get("/api/firmy/:id", async (req, res) => {
     try {
-      const lead = await storage.getLead(req.params.id);
-      if (!lead) return res.status(404).json({ error: "Lead not found" });
-      return res.json(lead);
+      const firma = await storage.getFirma(req.params.id);
+      if (!firma) return res.status(404).json({ error: "Firma nenalezena" });
+      return res.json(firma);
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch lead" });
+      return res.status(500).json({ error: "Chyba" });
     }
   });
 
-  app.post("/api/leads", async (req, res) => {
+  app.post("/api/firmy", async (req, res) => {
     try {
-      const lead = await storage.createLead(req.body);
-      return res.status(201).json(lead);
+      const firma = await storage.createFirma(req.body);
+      return res.status(201).json(firma);
     } catch (error) {
-      return res.status(500).json({ error: "Failed to create lead" });
+      return res.status(500).json({ error: "Nepodařilo se vytvořit firmu" });
     }
   });
 
-  app.patch("/api/leads/:id", async (req, res) => {
+  app.patch("/api/firmy/:id", async (req, res) => {
     try {
-      const lead = await storage.updateLead(req.params.id, req.body);
-      if (!lead) return res.status(404).json({ error: "Lead not found" });
-      return res.json(lead);
+      const firma = await storage.updateFirma(req.params.id, req.body);
+      if (!firma) return res.status(404).json({ error: "Firma nenalezena" });
+      return res.json(firma);
     } catch (error) {
-      return res.status(500).json({ error: "Failed to update lead" });
+      return res.status(500).json({ error: "Nepodařilo se upravit firmu" });
     }
   });
 
-  app.delete("/api/leads/:id", async (req, res) => {
+  app.delete("/api/firmy/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteLead(req.params.id);
-      if (!deleted) return res.status(404).json({ error: "Lead not found" });
+      const deleted = await storage.deleteFirma(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Firma nenalezena" });
       return res.json({ success: true });
     } catch (error) {
-      return res.status(500).json({ error: "Failed to delete lead" });
+      return res.status(500).json({ error: "Nepodařilo se smazat firmu" });
     }
   });
 
-  // ---- Activity routes ----
-  app.get("/api/activities", async (req, res) => {
+  // Kontakty
+  app.get("/api/kontakty", async (req, res) => {
     try {
-      const leadId = req.query.leadId as string;
+      const firmaId = req.query.firmaId as string;
+      if (!firmaId) return res.status(400).json({ error: "firmaId required" });
+      return res.json(await storage.getKontakty(firmaId));
+    } catch (error) {
+      return res.status(500).json({ error: "Chyba" });
+    }
+  });
+
+  app.post("/api/kontakty", async (req, res) => {
+    try {
+      return res.status(201).json(await storage.createKontakt(req.body));
+    } catch (error) {
+      return res.status(500).json({ error: "Nepodařilo se vytvořit kontakt" });
+    }
+  });
+
+  app.patch("/api/kontakty/:id", async (req, res) => {
+    try {
+      const k = await storage.updateKontakt(req.params.id, req.body);
+      if (!k) return res.status(404).json({ error: "Kontakt nenalezen" });
+      return res.json(k);
+    } catch (error) {
+      return res.status(500).json({ error: "Chyba" });
+    }
+  });
+
+  app.delete("/api/kontakty/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteKontakt(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Kontakt nenalezen" });
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(500).json({ error: "Chyba" });
+    }
+  });
+
+  // Komunikace
+  app.get("/api/komunikace", async (req, res) => {
+    try {
+      const firmaId = req.query.firmaId as string;
+      if (!firmaId) return res.status(400).json({ error: "firmaId required" });
+      return res.json(await storage.getKomunikace(firmaId));
+    } catch (error) {
+      return res.status(500).json({ error: "Chyba" });
+    }
+  });
+
+  app.post("/api/komunikace", async (req, res) => {
+    try {
+      return res.status(201).json(await storage.createKomunikace(req.body));
+    } catch (error) {
+      return res.status(500).json({ error: "Nepodařilo se přidat záznam" });
+    }
+  });
+
+  app.delete("/api/komunikace/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteKomunikace(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Záznam nenalezen" });
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(500).json({ error: "Chyba" });
+    }
+  });
+
+  // Followupy
+  app.get("/api/followupy", async (req, res) => {
+    try {
       const userId = req.query.userId as string;
-      if (leadId) {
-        const activities = await storage.getActivities(leadId);
-        return res.json(activities);
-      } else if (userId) {
-        const activities = await storage.getActivitiesByUser(userId);
-        return res.json(activities);
-      }
-      return res.status(400).json({ error: "leadId or userId is required" });
+      const firmaId = req.query.firmaId as string;
+      if (firmaId) return res.json(await storage.getFollowupyByFirma(firmaId));
+      if (userId) return res.json(await storage.getFollowupy(userId));
+      return res.status(400).json({ error: "userId or firmaId required" });
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch activities" });
+      return res.status(500).json({ error: "Chyba" });
     }
   });
 
-  app.post("/api/activities", async (req, res) => {
+  app.post("/api/followupy", async (req, res) => {
     try {
-      const activity = await storage.createActivity(req.body);
-      return res.status(201).json(activity);
+      return res.status(201).json(await storage.createFollowup(req.body));
     } catch (error) {
-      return res.status(500).json({ error: "Failed to create activity" });
+      return res.status(500).json({ error: "Nepodařilo se vytvořit follow-up" });
     }
   });
 
-  app.patch("/api/activities/:id", async (req, res) => {
+  app.patch("/api/followupy/:id", async (req, res) => {
     try {
-      const activity = await storage.updateActivity(req.params.id, req.body);
-      if (!activity) return res.status(404).json({ error: "Activity not found" });
-      return res.json(activity);
+      const f = await storage.updateFollowup(req.params.id, req.body);
+      if (!f) return res.status(404).json({ error: "Follow-up nenalezen" });
+      return res.json(f);
     } catch (error) {
-      return res.status(500).json({ error: "Failed to update activity" });
+      return res.status(500).json({ error: "Chyba" });
     }
   });
 
-  app.delete("/api/activities/:id", async (req, res) => {
+  app.delete("/api/followupy/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteActivity(req.params.id);
-      if (!deleted) return res.status(404).json({ error: "Activity not found" });
+      const deleted = await storage.deleteFollowup(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Follow-up nenalezen" });
       return res.json({ success: true });
     } catch (error) {
-      return res.status(500).json({ error: "Failed to delete activity" });
+      return res.status(500).json({ error: "Chyba" });
     }
   });
 
-  // ---- Dashboard stats ----
+  // Dashboard stats
   app.get("/api/stats", async (req, res) => {
     try {
       const userId = req.query.userId as string;
-      if (!userId) return res.status(400).json({ error: "userId is required" });
-      const leads = await storage.getLeads(userId);
-      const activities = await storage.getActivitiesByUser(userId);
+      if (!userId) return res.status(400).json({ error: "userId required" });
+      const firmy = await storage.getFirmy(userId);
+      const followupy = await storage.getFollowupy(userId);
+      
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const in3Days = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
 
-      const totalLeads = leads.length;
-      const totalValue = leads.reduce((sum, l) => sum + (l.value ?? 0), 0);
-      const wonLeads = leads.filter(l => l.stage === "won");
-      const wonValue = wonLeads.reduce((sum, l) => sum + (l.value ?? 0), 0);
-      const conversionRate = totalLeads > 0 ? (wonLeads.length / totalLeads * 100).toFixed(1) : "0";
+      const nesplneneFollowupy = followupy.filter(f => !f.splneno);
+      const prosleFU = nesplneneFollowupy.filter(f => new Date(f.datumPlan) < today);
+      const dnesFU = nesplneneFollowupy.filter(f => {
+        const d = new Date(f.datumPlan);
+        return d >= today && d < new Date(today.getTime() + 24*60*60*1000);
+      });
+      const bliziciFU = nesplneneFollowupy.filter(f => {
+        const d = new Date(f.datumPlan);
+        return d >= today && d <= in3Days;
+      });
 
-      const stageDistribution = leads.reduce((acc, l) => {
-        acc[l.stage] = (acc[l.stage] || 0) + 1;
+      const stavDistribuce = firmy.reduce((acc, f) => {
+        acc[f.stav] = (acc[f.stav] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      const sourceDistribution = leads.reduce((acc, l) => {
-        acc[l.source] = (acc[l.source] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
-      const pendingTasks = activities.filter(a => !a.completed && a.type === "task").length;
-      const upcomingMeetings = activities.filter(a => !a.completed && a.type === "meeting").length;
+      const celkovaHodnota = firmy.reduce((s, f) => s + (f.hodnotaDealu ?? 0), 0);
+      const aktivniLeady = firmy.filter(f => !["zakaznik", "nezajem"].includes(f.stav)).length;
 
       return res.json({
-        totalLeads,
-        totalValue,
-        wonValue,
-        conversionRate: parseFloat(conversionRate as string),
-        stageDistribution,
-        sourceDistribution,
-        pendingTasks,
-        upcomingMeetings,
-        recentLeads: leads.slice(0, 5),
+        celkemFirem: firmy.length,
+        aktivniLeady,
+        celkovaHodnota,
+        zakazniku: firmy.filter(f => f.stav === "zakaznik").length,
+        stavDistribuce,
+        prosleFU: prosleFU.length,
+        dnesFU: dnesFU.length,
+        bliziciFU: bliziciFU.length,
+        followupyDnes: dnesFU,
+        followupyProsle: prosleFU,
+        followupyBlizici: bliziciFU.slice(0, 10),
+        nedavneFiremy: firmy.slice(0, 5),
       });
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch stats" });
+      return res.status(500).json({ error: "Chyba" });
     }
   });
 

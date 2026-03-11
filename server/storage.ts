@@ -1,396 +1,281 @@
 import {
   type User, type InsertUser,
-  type Lead, type InsertLead,
-  type Activity, type InsertActivity,
+  type Firma, type InsertFirma,
+  type Kontakt, type InsertKontakt,
+  type Komunikace, type InsertKomunikace,
+  type Followup, type InsertFollowup,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
-  // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
 
-  // Leads
-  getLeads(userId: string): Promise<Lead[]>;
-  getLead(id: string): Promise<Lead | undefined>;
-  createLead(lead: InsertLead): Promise<Lead>;
-  updateLead(id: string, lead: Partial<InsertLead>): Promise<Lead | undefined>;
-  deleteLead(id: string): Promise<boolean>;
-  searchLeads(userId: string, query: string): Promise<Lead[]>;
+  getFirmy(userId: string): Promise<Firma[]>;
+  getFirma(id: string): Promise<Firma | undefined>;
+  createFirma(firma: InsertFirma): Promise<Firma>;
+  updateFirma(id: string, firma: Partial<InsertFirma>): Promise<Firma | undefined>;
+  deleteFirma(id: string): Promise<boolean>;
+  searchFirmy(userId: string, query: string): Promise<Firma[]>;
 
-  // Activities
-  getActivities(leadId: string): Promise<Activity[]>;
-  getActivitiesByUser(userId: string): Promise<Activity[]>;
-  createActivity(activity: InsertActivity): Promise<Activity>;
-  updateActivity(id: string, activity: Partial<InsertActivity>): Promise<Activity | undefined>;
-  deleteActivity(id: string): Promise<boolean>;
+  getKontakty(firmaId: string): Promise<Kontakt[]>;
+  createKontakt(kontakt: InsertKontakt): Promise<Kontakt>;
+  updateKontakt(id: string, kontakt: Partial<InsertKontakt>): Promise<Kontakt | undefined>;
+  deleteKontakt(id: string): Promise<boolean>;
+
+  getKomunikace(firmaId: string): Promise<Komunikace[]>;
+  createKomunikace(komunikace: InsertKomunikace): Promise<Komunikace>;
+  deleteKomunikace(id: string): Promise<boolean>;
+
+  getFollowupy(userId: string): Promise<Followup[]>;
+  getFollowupyByFirma(firmaId: string): Promise<Followup[]>;
+  createFollowup(followup: InsertFollowup): Promise<Followup>;
+  updateFollowup(id: string, data: Partial<InsertFollowup & { splneno?: boolean; splnenoDate?: Date | null }>): Promise<Followup | undefined>;
+  deleteFollowup(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private leads: Map<string, Lead>;
-  private activities: Map<string, Activity>;
+  private users: Map<string, User> = new Map();
+  private firmyMap: Map<string, Firma> = new Map();
+  private kontaktyMap: Map<string, Kontakt> = new Map();
+  private komunikaceMap: Map<string, Komunikace> = new Map();
+  private followupyMap: Map<string, Followup> = new Map();
 
   constructor() {
-    this.users = new Map();
-    this.leads = new Map();
-    this.activities = new Map();
     this.seedData();
   }
 
   private seedData() {
-    // Create a demo user
     const demoUser: User = {
       id: "demo-user-1",
-      username: "demo",
-      password: "demo123",
+      username: "petr",
+      password: "heslo123",
       fullName: "Petr Hollmann",
-      email: "petr@example.com",
-      company: "MyCRM",
-      role: "Sales Manager",
+      email: "petr.hollmann@gmail.com",
     };
     this.users.set(demoUser.id, demoUser);
 
-    // Seed some leads
-    const seedLeads: Lead[] = [
+    // Seed firmy
+    const firmy: Firma[] = [
       {
-        id: randomUUID(),
-        userId: "demo-user-1",
-        firstName: "Jan",
-        lastName: "Novak",
-        email: "jan.novak@firma.cz",
-        phone: "+420 602 123 456",
-        company: "TechStart s.r.o.",
-        position: "CEO",
-        source: "website",
-        stage: "new",
-        priority: "high",
-        value: 150000,
-        notes: "Interested in enterprise plan",
-        tags: "enterprise,tech",
-        createdAt: new Date("2026-03-01"),
-        lastContactedAt: null,
-      },
-      {
-        id: randomUUID(),
-        userId: "demo-user-1",
-        firstName: "Eva",
-        lastName: "Svobodova",
-        email: "eva@designstudio.cz",
-        phone: "+420 603 234 567",
-        company: "Design Studio Praha",
-        position: "Marketing Director",
-        source: "referral",
-        stage: "contacted",
-        priority: "medium",
-        value: 85000,
-        notes: "Referred by Jan Novak",
-        tags: "design,marketing",
-        createdAt: new Date("2026-03-03"),
-        lastContactedAt: new Date("2026-03-05"),
-      },
-      {
-        id: randomUUID(),
-        userId: "demo-user-1",
-        firstName: "Martin",
-        lastName: "Kral",
-        email: "m.kral@bigcorp.cz",
-        phone: "+420 604 345 678",
-        company: "BigCorp a.s.",
-        position: "CTO",
-        source: "cold_call",
-        stage: "qualified",
-        priority: "high",
-        value: 320000,
-        notes: "Looking for CRM integration with their ERP",
-        tags: "enterprise,integration",
-        createdAt: new Date("2026-02-20"),
-        lastContactedAt: new Date("2026-03-08"),
-      },
-      {
-        id: randomUUID(),
-        userId: "demo-user-1",
-        firstName: "Lucie",
-        lastName: "Horakova",
-        email: "lucie@startup.io",
-        phone: "+420 605 456 789",
-        company: "InnoStart",
-        position: "Founder",
-        source: "event",
-        stage: "proposal",
-        priority: "medium",
-        value: 55000,
-        notes: "Met at Prague Startup Summit",
-        tags: "startup,saas",
-        createdAt: new Date("2026-02-15"),
-        lastContactedAt: new Date("2026-03-10"),
-      },
-      {
-        id: randomUUID(),
-        userId: "demo-user-1",
-        firstName: "Tomas",
-        lastName: "Dvorak",
-        email: "tomas@ecommerce.cz",
-        phone: "+420 606 567 890",
-        company: "ShopMax",
-        position: "Head of Sales",
-        source: "email_campaign",
-        stage: "negotiation",
-        priority: "high",
-        value: 210000,
-        notes: "Negotiating annual contract",
-        tags: "ecommerce,retail",
-        createdAt: new Date("2026-01-28"),
-        lastContactedAt: new Date("2026-03-09"),
-      },
-      {
-        id: randomUUID(),
-        userId: "demo-user-1",
-        firstName: "Petra",
-        lastName: "Malikova",
-        email: "petra@agency.cz",
-        phone: "+420 607 678 901",
-        company: "Digital Agency XY",
-        position: "Account Manager",
-        source: "social_media",
-        stage: "won",
-        priority: "low",
-        value: 42000,
-        notes: "Signed 6-month contract",
-        tags: "agency,digital",
+        id: "f1", userId: "demo-user-1", nazev: "Transfaktoring a.s.", ico: "28501187",
+        web: "https://transfaktoring.cz", obor: "faktoring", pocetZamestnancu: "5-10",
+        ppisPodnikani: "Faktoringová společnost, zpracovávají velké množství faktur a smluv o postoupení pohledávek.",
+        adresa: "Praha", poznamky: "Stávající klient. Platí měsíčně za extrakci faktur. Rozšiřujeme o RAG analýzu smluv.",
+        zdroj: "doporuceni", stav: "zakaznik", hodnotaDealu: 15000, tagy: "aktivni,faktoring,rag",
         createdAt: new Date("2026-01-10"),
-        lastContactedAt: new Date("2026-03-01"),
       },
       {
-        id: randomUUID(),
-        userId: "demo-user-1",
-        firstName: "Karel",
-        lastName: "Cerny",
-        email: "karel@oldschool.cz",
-        phone: "+420 608 789 012",
-        company: "Traditional Corp",
-        position: "Manager",
-        source: "cold_call",
-        stage: "lost",
-        priority: "low",
-        value: 30000,
-        notes: "Went with competitor, budget constraints",
-        tags: "traditional",
-        createdAt: new Date("2026-02-01"),
-        lastContactedAt: new Date("2026-02-28"),
+        id: "f2", userId: "demo-user-1", nazev: "BNP Paribas Faktoring", ico: "27248186",
+        web: "https://factoringkb.cz", obor: "faktoring", pocetZamestnancu: "20-30",
+        ppisPodnikani: "Velká faktoringová společnost, součást skupiny BNP. Zpracovávají tisíce faktur měsíčně.",
+        adresa: "Praha 1", poznamky: "Velký potenciál, ale delší sales cycle. Kontaktovat přes LinkedIn.",
+        zdroj: "linkedin", stav: "osloven", hodnotaDealu: 50000, tagy: "enterprise,faktoring",
+        createdAt: new Date("2026-02-15"),
+      },
+      {
+        id: "f3", userId: "demo-user-1", nazev: "Malá účetní s.r.o.", ico: "12345678",
+        web: null, obor: "ucetnictvi", pocetZamestnancu: "3-5",
+        ppisPodnikani: "Účetní kancelář, zpracovávají doklady pro 50+ klientů. Ruční přepis faktur.",
+        adresa: "Liberec", poznamky: "Referral od kamaráda. Ideální profil - malá firma, hodně dokumentů.",
+        zdroj: "doporuceni", stav: "schuzka", hodnotaDealu: 8000, tagy: "ucetnictvi,liberec",
+        createdAt: new Date("2026-02-20"),
+      },
+      {
+        id: "f4", userId: "demo-user-1", nazev: "FastLogistics s.r.o.", ico: "98765432",
+        web: "https://fastlogistics.cz", obor: "logistika", pocetZamestnancu: "10-15",
+        ppisPodnikani: "Spediční firma, přepravní dokumenty, CMR listy, dodací listy.",
+        adresa: "Brno", poznamky: "Našel jsem je přes ARES. Hodně papírů, ale nevím jestli mají budget.",
+        zdroj: "ares", stav: "novy", hodnotaDealu: 12000, tagy: "logistika,brno",
+        createdAt: new Date("2026-03-01"),
+      },
+      {
+        id: "f5", userId: "demo-user-1", nazev: "Broker Capital a.s.", ico: "55667788",
+        web: "https://brokercapital.cz", obor: "makler", pocetZamestnancu: "5-10",
+        ppisPodnikani: "Finanční makléř, zpracovávají pojistné smlouvy a finanční dokumenty.",
+        adresa: "Praha 5", poznamky: "Odpověděli na cold email. Chtějí demo v březnu.",
+        zdroj: "cold_email", stav: "odpovezel", hodnotaDealu: 20000, tagy: "makler,demo",
+        createdAt: new Date("2026-02-25"),
+      },
+      {
+        id: "f6", userId: "demo-user-1", nazev: "Česká správa nemovitostí", ico: "44556677",
+        web: null, obor: "jine", pocetZamestnancu: "15-20",
+        ppisPodnikani: "Správa nemovitostí, nájemní smlouvy, předávací protokoly.",
+        adresa: "Plzeň", poznamky: "Mají zájem ale čekají na rozpočet Q2.",
+        zdroj: "cold_call", stav: "nabidka", hodnotaDealu: 25000, tagy: "nemovitosti",
+        createdAt: new Date("2026-02-10"),
       },
     ];
 
-    for (const lead of seedLeads) {
-      this.leads.set(lead.id, lead);
-    }
+    for (const f of firmy) this.firmyMap.set(f.id, f);
 
-    // Seed some activities
-    const leadIds = seedLeads.map(l => l.id);
-    const seedActivities: Activity[] = [
-      {
-        id: randomUUID(),
-        leadId: leadIds[0],
-        userId: "demo-user-1",
-        type: "email",
-        title: "Sent intro email",
-        description: "Sent initial contact email with product overview",
-        completed: true,
-        dueDate: null,
-        createdAt: new Date("2026-03-02"),
-      },
-      {
-        id: randomUUID(),
-        leadId: leadIds[1],
-        userId: "demo-user-1",
-        type: "call",
-        title: "Discovery call",
-        description: "30min call to understand requirements",
-        completed: true,
-        dueDate: null,
-        createdAt: new Date("2026-03-05"),
-      },
-      {
-        id: randomUUID(),
-        leadId: leadIds[2],
-        userId: "demo-user-1",
-        type: "meeting",
-        title: "Product demo scheduled",
-        description: "Demo of CRM integration capabilities",
-        completed: false,
-        dueDate: new Date("2026-03-15"),
-        createdAt: new Date("2026-03-08"),
-      },
-      {
-        id: randomUUID(),
-        leadId: leadIds[3],
-        userId: "demo-user-1",
-        type: "note",
-        title: "Proposal sent",
-        description: "Sent pricing proposal for starter package",
-        completed: true,
-        dueDate: null,
-        createdAt: new Date("2026-03-10"),
-      },
-      {
-        id: randomUUID(),
-        leadId: leadIds[4],
-        userId: "demo-user-1",
-        type: "task",
-        title: "Follow up on contract terms",
-        description: "Review their proposed changes to the contract",
-        completed: false,
-        dueDate: new Date("2026-03-12"),
-        createdAt: new Date("2026-03-09"),
-      },
+    // Seed kontakty
+    const kontakty: Kontakt[] = [
+      { id: "k1", firmaId: "f1", jmeno: "Tomáš", prijmeni: "Novotný", pozice: "Jednatel", email: "novotny@transfaktoring.cz", telefon: "+420 602 111 222", linkedin: null, jePrimarni: true, poznamky: "Hlavní kontakt, rozhoduje o rozpočtu", createdAt: new Date() },
+      { id: "k2", firmaId: "f2", jmeno: "Markéta", prijmeni: "Dvořáková", pozice: "Head of Operations", email: "dvorakova@factoringkb.cz", telefon: null, linkedin: "https://linkedin.com/in/dvorakova", jePrimarni: true, poznamky: "Kontaktována přes LinkedIn", createdAt: new Date() },
+      { id: "k3", firmaId: "f3", jmeno: "Jana", prijmeni: "Procházková", pozice: "Jednatelka", email: "jana@malaucteni.cz", telefon: "+420 603 333 444", linkedin: null, jePrimarni: true, poznamky: "Velmi vstřícná, nadšená z automatizace", createdAt: new Date() },
+      { id: "k4", firmaId: "f4", jmeno: "Petr", prijmeni: "Kučera", pozice: "Provozní ředitel", email: "kucera@fastlogistics.cz", telefon: "+420 604 555 666", linkedin: null, jePrimarni: true, poznamky: null, createdAt: new Date() },
+      { id: "k5", firmaId: "f5", jmeno: "Martin", prijmeni: "Šťastný", pozice: "CEO", email: "stastny@brokercapital.cz", telefon: "+420 605 777 888", linkedin: "https://linkedin.com/in/stastny", jePrimarni: true, poznamky: "Odpověděl na cold email, chtěl demo", createdAt: new Date() },
+      { id: "k6", firmaId: "f6", jmeno: "Alena", prijmeni: "Malá", pozice: "Office Manager", email: "mala@csn.cz", telefon: "+420 606 999 000", linkedin: null, jePrimarni: true, poznamky: "Kontakt od kolegy. Připravit nabídku.", createdAt: new Date() },
     ];
 
-    for (const activity of seedActivities) {
-      this.activities.set(activity.id, activity);
-    }
+    for (const k of kontakty) this.kontaktyMap.set(k.id, k);
+
+    // Seed komunikace
+    const komunikace: Komunikace[] = [
+      { id: "com1", firmaId: "f2", kontaktId: "k2", userId: "demo-user-1", typ: "linkedin", smer: "odchozi", predmet: "Úvodní zpráva na LinkedIn", obsah: "Dobrý den, kontaktuji vás ohledně automatizace zpracování faktur...", odpoved: null, datum: new Date("2026-02-15"), createdAt: new Date("2026-02-15") },
+      { id: "com2", firmaId: "f3", kontaktId: "k3", userId: "demo-user-1", typ: "telefon", smer: "odchozi", predmet: "Úvodní hovor", obsah: "Volal jsem, domluvili jsme schůzku na 15.3.", odpoved: "Má zájem, chce vidět demo. Schůzka 15.3. v 10:00.", datum: new Date("2026-03-05"), createdAt: new Date("2026-03-05") },
+      { id: "com3", firmaId: "f5", kontaktId: "k5", userId: "demo-user-1", typ: "email", smer: "odchozi", predmet: "AlgoMat - automatizace dokumentů", obsah: "Cold email s představením služby", odpoved: "Děkuji, zní to zajímavě. Můžeme si domluvit krátký call?", datum: new Date("2026-02-28"), createdAt: new Date("2026-02-28") },
+      { id: "com4", firmaId: "f6", kontaktId: "k6", userId: "demo-user-1", typ: "telefon", smer: "prichozi", predmet: "Dotaz na cenu", obsah: "Alena volala, ptala se na ceník a možnosti integrace.", odpoved: null, datum: new Date("2026-03-08"), createdAt: new Date("2026-03-08") },
+      { id: "com5", firmaId: "f6", kontaktId: "k6", userId: "demo-user-1", typ: "email", smer: "odchozi", predmet: "Cenová nabídka", obsah: "Odeslána cenová nabídka na zpracování nájemních smluv.", odpoved: null, datum: new Date("2026-03-09"), createdAt: new Date("2026-03-09") },
+    ];
+
+    for (const c of komunikace) this.komunikaceMap.set(c.id, c);
+
+    // Seed followupy
+    const followupy: Followup[] = [
+      { id: "fu1", firmaId: "f2", userId: "demo-user-1", typ: "linkedin", popis: "Follow-up na LinkedIn zprávu, připomenout se", datumPlan: new Date("2026-03-12"), splneno: false, splnenoDate: null, priorita: "stredni", createdAt: new Date() },
+      { id: "fu2", firmaId: "f3", userId: "demo-user-1", typ: "schuzka", popis: "Schůzka s Janou - demo AlgoMat", datumPlan: new Date("2026-03-15"), splneno: false, splnenoDate: null, priorita: "vysoka", createdAt: new Date() },
+      { id: "fu3", firmaId: "f4", userId: "demo-user-1", typ: "email", popis: "Poslat úvodní email Petru Kučerovi", datumPlan: new Date("2026-03-11"), splneno: false, splnenoDate: null, priorita: "stredni", createdAt: new Date() },
+      { id: "fu4", firmaId: "f5", userId: "demo-user-1", typ: "telefon", popis: "Zavolat Martinovi, domluvit termín dema", datumPlan: new Date("2026-03-13"), splneno: false, splnenoDate: null, priorita: "vysoka", createdAt: new Date() },
+      { id: "fu5", firmaId: "f6", userId: "demo-user-1", typ: "email", popis: "Follow-up na cenovou nabídku - ptát se na rozpočet", datumPlan: new Date("2026-03-18"), splneno: false, splnenoDate: null, priorita: "nizka", createdAt: new Date() },
+      { id: "fu6", firmaId: "f1", userId: "demo-user-1", typ: "schuzka", popis: "Prezentace RAG analýzy smluv pro TRFA", datumPlan: new Date("2026-03-20"), splneno: false, splnenoDate: null, priorita: "vysoka", createdAt: new Date() },
+    ];
+
+    for (const f of followupy) this.followupyMap.set(f.id, f);
   }
 
   // Users
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
+  async getUser(id: string): Promise<User | undefined> { return this.users.get(id); }
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    return Array.from(this.users.values()).find(u => u.username === username);
   }
-
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { id, ...insertUser, company: insertUser.company ?? null, role: insertUser.role ?? null };
+    const user: User = { id, ...insertUser };
     this.users.set(id, user);
     return user;
   }
 
-  // Leads
-  async getLeads(userId: string): Promise<Lead[]> {
-    return Array.from(this.leads.values())
-      .filter((lead) => lead.userId === userId)
-      .sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
+  // Firmy
+  async getFirmy(userId: string): Promise<Firma[]> {
+    return Array.from(this.firmyMap.values())
+      .filter(f => f.userId === userId)
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
   }
-
-  async getLead(id: string): Promise<Lead | undefined> {
-    return this.leads.get(id);
-  }
-
-  async createLead(insertLead: InsertLead): Promise<Lead> {
+  async getFirma(id: string): Promise<Firma | undefined> { return this.firmyMap.get(id); }
+  async createFirma(data: InsertFirma): Promise<Firma> {
     const id = randomUUID();
-    const lead: Lead = {
-      id,
-      userId: insertLead.userId,
-      firstName: insertLead.firstName,
-      lastName: insertLead.lastName,
-      email: insertLead.email ?? null,
-      phone: insertLead.phone ?? null,
-      company: insertLead.company ?? null,
-      position: insertLead.position ?? null,
-      source: insertLead.source ?? "other",
-      stage: insertLead.stage ?? "new",
-      priority: insertLead.priority ?? "medium",
-      value: insertLead.value ?? 0,
-      notes: insertLead.notes ?? null,
-      tags: insertLead.tags ?? null,
-      createdAt: new Date(),
-      lastContactedAt: insertLead.lastContactedAt ?? null,
+    const firma: Firma = {
+      id, userId: data.userId, nazev: data.nazev, ico: data.ico ?? null,
+      web: data.web ?? null, obor: data.obor ?? "jine", pocetZamestnancu: data.pocetZamestnancu ?? null,
+      ppisPodnikani: data.ppisPodnikani ?? null, adresa: data.adresa ?? null,
+      poznamky: data.poznamky ?? null, zdroj: data.zdroj ?? "jine", stav: data.stav ?? "novy",
+      hodnotaDealu: data.hodnotaDealu ?? 0, tagy: data.tagy ?? null, createdAt: new Date(),
     };
-    this.leads.set(id, lead);
-    return lead;
+    this.firmyMap.set(id, firma);
+    return firma;
   }
-
-  async updateLead(id: string, updates: Partial<InsertLead>): Promise<Lead | undefined> {
-    const lead = this.leads.get(id);
-    if (!lead) return undefined;
-    const updated = { ...lead, ...updates };
-    this.leads.set(id, updated as Lead);
-    return updated as Lead;
+  async updateFirma(id: string, updates: Partial<InsertFirma>): Promise<Firma | undefined> {
+    const f = this.firmyMap.get(id);
+    if (!f) return undefined;
+    const updated = { ...f, ...updates } as Firma;
+    this.firmyMap.set(id, updated);
+    return updated;
   }
-
-  async deleteLead(id: string): Promise<boolean> {
-    // Also delete related activities
-    const activitiesToDelete = Array.from(this.activities.values())
-      .filter(a => a.leadId === id);
-    for (const a of activitiesToDelete) {
-      this.activities.delete(a.id);
-    }
-    return this.leads.delete(id);
+  async deleteFirma(id: string): Promise<boolean> {
+    // cascade delete kontakty, komunikace, followupy
+    for (const [kid, k] of this.kontaktyMap) { if (k.firmaId === id) this.kontaktyMap.delete(kid); }
+    for (const [cid, c] of this.komunikaceMap) { if (c.firmaId === id) this.komunikaceMap.delete(cid); }
+    for (const [fid, f] of this.followupyMap) { if (f.firmaId === id) this.followupyMap.delete(fid); }
+    return this.firmyMap.delete(id);
   }
-
-  async searchLeads(userId: string, query: string): Promise<Lead[]> {
+  async searchFirmy(userId: string, query: string): Promise<Firma[]> {
     const q = query.toLowerCase();
-    return Array.from(this.leads.values())
-      .filter((lead) => {
-        if (lead.userId !== userId) return false;
-        return (
-          lead.firstName.toLowerCase().includes(q) ||
-          lead.lastName.toLowerCase().includes(q) ||
-          (lead.email?.toLowerCase().includes(q) ?? false) ||
-          (lead.company?.toLowerCase().includes(q) ?? false) ||
-          (lead.phone?.includes(q) ?? false) ||
-          (lead.tags?.toLowerCase().includes(q) ?? false)
-        );
-      });
+    return Array.from(this.firmyMap.values()).filter(f => {
+      if (f.userId !== userId) return false;
+      return f.nazev.toLowerCase().includes(q) ||
+        (f.ico?.includes(q) ?? false) ||
+        (f.obor?.toLowerCase().includes(q) ?? false) ||
+        (f.tagy?.toLowerCase().includes(q) ?? false) ||
+        (f.adresa?.toLowerCase().includes(q) ?? false) ||
+        (f.poznamky?.toLowerCase().includes(q) ?? false);
+    });
   }
 
-  // Activities
-  async getActivities(leadId: string): Promise<Activity[]> {
-    return Array.from(this.activities.values())
-      .filter((a) => a.leadId === leadId)
-      .sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
+  // Kontakty
+  async getKontakty(firmaId: string): Promise<Kontakt[]> {
+    return Array.from(this.kontaktyMap.values()).filter(k => k.firmaId === firmaId);
   }
-
-  async getActivitiesByUser(userId: string): Promise<Activity[]> {
-    return Array.from(this.activities.values())
-      .filter((a) => a.userId === userId)
-      .sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
-  }
-
-  async createActivity(insertActivity: InsertActivity): Promise<Activity> {
+  async createKontakt(data: InsertKontakt): Promise<Kontakt> {
     const id = randomUUID();
-    const activity: Activity = {
-      id,
-      leadId: insertActivity.leadId,
-      userId: insertActivity.userId,
-      type: insertActivity.type,
-      title: insertActivity.title,
-      description: insertActivity.description ?? null,
-      completed: insertActivity.completed ?? false,
-      dueDate: insertActivity.dueDate ?? null,
-      createdAt: new Date(),
+    const k: Kontakt = {
+      id, firmaId: data.firmaId, jmeno: data.jmeno, prijmeni: data.prijmeni,
+      pozice: data.pozice ?? null, email: data.email ?? null, telefon: data.telefon ?? null,
+      linkedin: data.linkedin ?? null, jePrimarni: data.jePrimarni ?? true,
+      poznamky: data.poznamky ?? null, createdAt: new Date(),
     };
-    this.activities.set(id, activity);
-    return activity;
+    this.kontaktyMap.set(id, k);
+    return k;
   }
+  async updateKontakt(id: string, updates: Partial<InsertKontakt>): Promise<Kontakt | undefined> {
+    const k = this.kontaktyMap.get(id);
+    if (!k) return undefined;
+    const updated = { ...k, ...updates } as Kontakt;
+    this.kontaktyMap.set(id, updated);
+    return updated;
+  }
+  async deleteKontakt(id: string): Promise<boolean> { return this.kontaktyMap.delete(id); }
 
-  async updateActivity(id: string, updates: Partial<InsertActivity>): Promise<Activity | undefined> {
-    const activity = this.activities.get(id);
-    if (!activity) return undefined;
-    const updated = { ...activity, ...updates };
-    this.activities.set(id, updated as Activity);
-    return updated as Activity;
+  // Komunikace
+  async getKomunikace(firmaId: string): Promise<Komunikace[]> {
+    return Array.from(this.komunikaceMap.values())
+      .filter(c => c.firmaId === firmaId)
+      .sort((a, b) => (b.datum?.getTime() ?? 0) - (a.datum?.getTime() ?? 0));
   }
+  async createKomunikace(data: InsertKomunikace): Promise<Komunikace> {
+    const id = randomUUID();
+    const c: Komunikace = {
+      id, firmaId: data.firmaId, kontaktId: data.kontaktId ?? null,
+      userId: data.userId, typ: data.typ, smer: data.smer ?? "odchozi",
+      predmet: data.predmet, obsah: data.obsah ?? null, odpoved: data.odpoved ?? null,
+      datum: data.datum ?? new Date(), createdAt: new Date(),
+    };
+    this.komunikaceMap.set(id, c);
+    return c;
+  }
+  async deleteKomunikace(id: string): Promise<boolean> { return this.komunikaceMap.delete(id); }
 
-  async deleteActivity(id: string): Promise<boolean> {
-    return this.activities.delete(id);
+  // Followupy
+  async getFollowupy(userId: string): Promise<Followup[]> {
+    return Array.from(this.followupyMap.values())
+      .filter(f => f.userId === userId)
+      .sort((a, b) => (a.datumPlan?.getTime() ?? 0) - (b.datumPlan?.getTime() ?? 0));
   }
+  async getFollowupyByFirma(firmaId: string): Promise<Followup[]> {
+    return Array.from(this.followupyMap.values())
+      .filter(f => f.firmaId === firmaId)
+      .sort((a, b) => (a.datumPlan?.getTime() ?? 0) - (b.datumPlan?.getTime() ?? 0));
+  }
+  async createFollowup(data: InsertFollowup): Promise<Followup> {
+    const id = randomUUID();
+    const f: Followup = {
+      id, firmaId: data.firmaId, userId: data.userId, typ: data.typ,
+      popis: data.popis, datumPlan: data.datumPlan, splneno: data.splneno ?? false,
+      splnenoDate: null, priorita: data.priorita ?? "stredni", createdAt: new Date(),
+    };
+    this.followupyMap.set(id, f);
+    return f;
+  }
+  async updateFollowup(id: string, updates: any): Promise<Followup | undefined> {
+    const f = this.followupyMap.get(id);
+    if (!f) return undefined;
+    const updated = { ...f, ...updates } as Followup;
+    this.followupyMap.set(id, updated);
+    return updated;
+  }
+  async deleteFollowup(id: string): Promise<boolean> { return this.followupyMap.delete(id); }
 }
 
 export const storage = new MemStorage();
