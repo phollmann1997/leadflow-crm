@@ -7,20 +7,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  // Auth
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const { username, password } = req.body;
-      const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== password) {
-        return res.status(401).json({ error: "Neplatné přihlašovací údaje" });
-      }
-      const { password: _, ...safeUser } = user;
-      return res.json(safeUser);
-    } catch (error) {
-      return res.status(500).json({ error: "Přihlášení selhalo" });
-    }
-  });
+  // Auth is handled by Supabase Auth on the frontend - no server login route needed
 
   // Firmy
   app.get("/api/firmy", async (req, res) => {

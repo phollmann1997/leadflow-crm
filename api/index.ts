@@ -13,10 +13,6 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Row <-> camelCase mapping
 // ============================================================
 
-function rowToUser(r: any) {
-  return { id: r.id, username: r.username, password: r.password, fullName: r.full_name, email: r.email };
-}
-
 function rowToFirma(r: any) {
   return {
     id: r.id, userId: r.user_id, nazev: r.nazev, ico: r.ico, web: r.web,
@@ -134,22 +130,6 @@ app.use((_req, res, next) => {
 // ============================================================
 // Routes
 // ============================================================
-
-// Auth
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    const { data } = await supabase.from("users").select("*").eq("username", username).single();
-    if (!data || data.password !== password) {
-      return res.status(401).json({ error: "Neplatné přihlašovací údaje" });
-    }
-    const user = rowToUser(data);
-    const { password: _, ...safeUser } = user;
-    return res.json(safeUser);
-  } catch (error) {
-    return res.status(500).json({ error: "Přihlášení selhalo" });
-  }
-});
 
 // Firmy
 app.get("/api/firmy", async (req, res) => {

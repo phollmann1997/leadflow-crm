@@ -74,7 +74,14 @@ function AuthenticatedApp() {
 }
 
 function AppContent() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Načítám...</div>
+      </div>
+    );
+  }
   if (!user) return <LoginPage />;
   return <AuthenticatedApp />;
 }

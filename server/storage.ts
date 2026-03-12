@@ -1,5 +1,4 @@
 import {
-  type User, type InsertUser,
   type Firma, type InsertFirma,
   type Kontakt, type InsertKontakt,
   type Komunikace, type InsertKomunikace,
@@ -8,10 +7,6 @@ import {
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-
   getFirmy(userId: string): Promise<Firma[]>;
   getFirma(id: string): Promise<Firma | undefined>;
   createFirma(firma: InsertFirma): Promise<Firma>;
@@ -36,10 +31,6 @@ export interface IStorage {
 }
 
 // Helper: Supabase snake_case row → TypeScript camelCase
-function rowToUser(r: any): User {
-  return { id: r.id, username: r.username, password: r.password, fullName: r.full_name, email: r.email };
-}
-
 function rowToFirma(r: any): Firma {
   return {
     id: r.id, userId: r.user_id, nazev: r.nazev, ico: r.ico, web: r.web,
@@ -146,28 +137,6 @@ export class SupabaseStorage implements IStorage {
     const url = process.env.SUPABASE_URL || "https://ajbvjnqpxoqsvlmwpxxu.supabase.co";
     const key = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqYnZqbnFweG9xc3ZsbXdweHh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNDA0NjUsImV4cCI6MjA4ODgxNjQ2NX0.1Fqrj3wb9ezl65Yop7AjGoa9_5N5cMG-AenD9xlV75k";
     this.supabase = createClient(url, key);
-  }
-
-  // ========== Users ==========
-  async getUser(id: string): Promise<User | undefined> {
-    const { data } = await this.supabase.from("users").select("*").eq("id", id).single();
-    return data ? rowToUser(data) : undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const { data } = await this.supabase.from("users").select("*").eq("username", username).single();
-    return data ? rowToUser(data) : undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const { data, error } = await this.supabase.from("users").insert({
-      username: insertUser.username,
-      password: insertUser.password,
-      full_name: insertUser.fullName,
-      email: insertUser.email,
-    }).select().single();
-    if (error) throw new Error(`Failed to create user: ${error.message}`);
-    return rowToUser(data);
   }
 
   // ========== Firmy ==========

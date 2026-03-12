@@ -10,15 +10,19 @@ import { Zap } from "lucide-react";
 export default function LoginPage() {
   const { login, isLoading } = useAuth();
   const { toast } = useToast();
-  const [username, setUsername] = useState("petr");
-  const [password, setPassword] = useState("heslo123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
-      await login(username, password);
+      await login(email, password);
     } catch (error: any) {
-      toast({ title: "Chyba", description: error.message, variant: "destructive" });
+      toast({ title: "Chyba přihlášení", description: error.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -37,17 +41,16 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Uživatel</Label>
-              <Input id="username" data-testid="input-username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" data-testid="input-email" type="email" placeholder="vas@email.cz" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Heslo</Label>
-              <Input id="password" data-testid="input-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input id="password" data-testid="input-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
             </div>
-            <Button type="submit" data-testid="button-login" className="w-full" disabled={isLoading}>
-              {isLoading ? "Přihlašuji..." : "Přihlásit se"}
+            <Button type="submit" data-testid="button-login" className="w-full" disabled={submitting || isLoading}>
+              {submitting ? "Přihlašuji..." : "Přihlásit se"}
             </Button>
-            <p className="text-xs text-muted-foreground text-center">Demo: petr / heslo123</p>
           </form>
         </CardContent>
       </Card>
