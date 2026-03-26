@@ -3,7 +3,14 @@
   "buildCommand": "npm run build:vercel",
   "outputDirectory": "dist/public",
   "framework": null,
+  "crons": [
+    {
+      "path": "/api/cron/daily-digest",
+      "schedule": "0 7 * * *"
+    }
+  ],
   "rewrites": [
+    { "source": "/api/cron/:path*", "destination": "/api/cron/:path*" },
     { "source": "/api/(.*)", "destination": "/api" }
   ],
   "headers": [
