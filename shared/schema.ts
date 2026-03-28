@@ -169,6 +169,7 @@ export const komunikace = pgTable("komunikace", {
   firmaId: varchar("firma_id").notNull(),
   kontaktId: varchar("kontakt_id"),          // optional link to contact
   userId: varchar("user_id").notNull(),
+  projektId: varchar("projekt_id"),
   typ: text("typ").notNull(),                // email, telefon, linkedin, schuzka, poznamka
   smer: text("smer").notNull().default("odchozi"), // odchozi / prichozi
   predmet: text("predmet").notNull(),        // subject/title
@@ -200,11 +201,32 @@ export const SMER_OPTIONS = [
   { value: "prichozi", label: "Příchozí (oni mně)" },
 ] as const;
 
+// Projekty (projects/deals per firma)
+export const projekty = pgTable("projekty", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firmaId: varchar("firma_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  nazev: text("nazev").notNull(),
+  popis: text("popis"),
+  stav: text("stav").notNull().default("novy"),
+  hodnotaDealu: integer("hodnota_dealu").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertProjektSchema = createInsertSchema(projekty).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertProjekt = z.infer<typeof insertProjektSchema>;
+export type Projekt = typeof projekty.$inferSelect;
+
 // Follow-upy (planned next steps / reminders)
 export const followupy = pgTable("followupy", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   firmaId: varchar("firma_id").notNull(),
   userId: varchar("user_id").notNull(),
+  projektId: varchar("projekt_id"),
   typ: text("typ").notNull(),                // email, telefon, schuzka, uloha
   popis: text("popis").notNull(),            // co udělat
   datumPlan: timestamp("datum_plan").notNull(), // kdy to udělat

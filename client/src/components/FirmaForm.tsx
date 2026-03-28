@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { OBOR_LABELS, ZDROJ_LABELS, PIPELINE_LABELS } from "@shared/schema";
+import { OBOR_LABELS, ZDROJ_LABELS } from "@shared/schema";
 import type { Firma } from "@shared/schema";
 
 const formSchema = z.object({
@@ -19,8 +19,6 @@ const formSchema = z.object({
   adresa: z.string().optional(),
   poznamky: z.string().optional(),
   zdroj: z.string().default("jine"),
-  stav: z.string().default("novy"),
-  hodnotaDealu: z.number().min(0).default(0),
   tagy: z.string().optional(),
 });
 
@@ -46,8 +44,6 @@ export default function FirmaForm({ defaultValues, onSubmit, isPending, submitLa
       adresa: defaultValues?.adresa ?? "",
       poznamky: defaultValues?.poznamky ?? "",
       zdroj: defaultValues?.zdroj ?? "jine",
-      stav: defaultValues?.stav ?? "novy",
-      hodnotaDealu: defaultValues?.hodnotaDealu ?? 0,
       tagy: defaultValues?.tagy ?? "",
     },
   });
@@ -71,7 +67,7 @@ export default function FirmaForm({ defaultValues, onSubmit, isPending, submitLa
             <FormItem><FormLabel>Adresa / Město</FormLabel><FormControl><Input placeholder="Praha" {...field} /></FormControl><FormMessage /></FormItem>
           )} />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField control={form.control} name="obor" render={({ field }) => (
             <FormItem><FormLabel>Obor</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -86,24 +82,10 @@ export default function FirmaForm({ defaultValues, onSubmit, isPending, submitLa
                 <SelectContent>{Object.entries(ZDROJ_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
               </Select><FormMessage /></FormItem>
           )} />
-          <FormField control={form.control} name="stav" render={({ field }) => (
-            <FormItem><FormLabel>Stav</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                <SelectContent>{Object.entries(PIPELINE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
-              </Select><FormMessage /></FormItem>
-          )} />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField control={form.control} name="pocetZamestnancu" render={({ field }) => (
-            <FormItem><FormLabel>Počet zaměstnanců (odhad)</FormLabel><FormControl><Input placeholder="5-10" {...field} /></FormControl><FormMessage /></FormItem>
-          )} />
-          <FormField control={form.control} name="hodnotaDealu" render={({ field }) => (
-            <FormItem><FormLabel>Odhadovaná hodnota (CZK/měs.)</FormLabel><FormControl>
-              <Input type="number" placeholder="0" {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} />
-            </FormControl><FormMessage /></FormItem>
-          )} />
-        </div>
+        <FormField control={form.control} name="pocetZamestnancu" render={({ field }) => (
+          <FormItem><FormLabel>Počet zaměstnanců (odhad)</FormLabel><FormControl><Input placeholder="5-10" {...field} /></FormControl><FormMessage /></FormItem>
+        )} />
         <FormField control={form.control} name="ppisPodnikani" render={({ field }) => (
           <FormItem><FormLabel>Popis podnikání</FormLabel><FormControl>
             <Textarea placeholder="Čím se firma zabývá, kolik dokumentů zpracovávají..." rows={2} {...field} />
@@ -118,7 +100,7 @@ export default function FirmaForm({ defaultValues, onSubmit, isPending, submitLa
           </FormControl><FormMessage /></FormItem>
         )} />
         <div className="flex justify-end pt-2">
-          <Button type="submit" disabled={isPending}>{isPending ? "Ukládám..." : submitLabel}</Button>
+          <Button type="submit" disabled={isPending} data-testid="button-firma-submit">{isPending ? "Ukládám..." : submitLabel}</Button>
         </div>
       </form>
     </Form>

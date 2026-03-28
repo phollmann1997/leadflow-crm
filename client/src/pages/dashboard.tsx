@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PIPELINE_LABELS, PIPELINE_COLORS, PRIORITA_COLORS, FOLLOWUP_TYPY } from "@shared/schema";
-import { Users, TrendingUp, Trophy, AlertTriangle, Clock, CalendarDays, ArrowRight } from "lucide-react";
+import { Users, TrendingUp, Trophy, AlertTriangle, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
-import type { Firma, Followup } from "@shared/schema";
+import type { Firma } from "@shared/schema";
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat("cs-CZ", { style: "currency", currency: "CZK", maximumFractionDigits: 0 }).format(v);
@@ -70,7 +70,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-4 md:p-6 space-y-6 overflow-auto h-full">
+    <div className="p-4 md:p-6 space-y-6 overflow-auto h-full" data-testid="page-dashboard">
       <div>
         <h1 className="text-2xl font-semibold" data-testid="text-dashboard-title">Přehled</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -80,11 +80,11 @@ export default function DashboardPage() {
 
       {/* KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card data-testid="kpi-aktivni-leady">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm text-muted-foreground">Aktivní leady</p>
+                <p className="text-sm text-muted-foreground">Aktivní projekty</p>
                 <p className="text-2xl font-semibold">{stats?.aktivniLeady ?? 0}</p>
               </div>
               <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
@@ -93,7 +93,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card data-testid="kpi-hodnota-pipeline">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -106,7 +106,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card data-testid="kpi-zakazniku">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -119,7 +119,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card data-testid="kpi-prosle-fu">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -198,11 +198,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Pipeline</CardTitle>
+            <CardTitle className="text-base">Pipeline (projekty)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {stats?.stavDistribuce && Object.entries(stats.stavDistribuce).map(([stav, count]) => (
-              <div key={stav} className="flex items-center justify-between gap-2 text-sm">
+              <div key={stav} className="flex items-center justify-between gap-2 text-sm" data-testid={`pipeline-stat-${stav}`}>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${PIPELINE_COLORS[stav]}`}>
                     {PIPELINE_LABELS[stav] ?? stav}
@@ -218,7 +218,7 @@ export default function DashboardPage() {
           <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-base">Poslední firmy</CardTitle>
             <Link href="/firmy">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" data-testid="button-all-firmy">
                 Vše <ArrowRight className="h-3.5 w-3.5 ml-1" />
               </Button>
             </Link>
@@ -226,14 +226,11 @@ export default function DashboardPage() {
           <CardContent className="space-y-2">
             {stats?.nedavneFiremy?.map((f: Firma) => (
               <Link key={f.id} href={`/firmy/${f.id}`}>
-                <div className="flex items-center justify-between gap-2 p-2 rounded-md hover-elevate cursor-pointer">
+                <div className="flex items-center justify-between gap-2 p-2 rounded-md hover-elevate cursor-pointer" data-testid={`recent-firma-${f.id}`}>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{f.nazev}</p>
                     <p className="text-xs text-muted-foreground truncate">{f.adresa}</p>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${PIPELINE_COLORS[f.stav]}`}>
-                    {PIPELINE_LABELS[f.stav]}
-                  </span>
                 </div>
               </Link>
             ))}

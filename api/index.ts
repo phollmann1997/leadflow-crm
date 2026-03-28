@@ -35,6 +35,7 @@ function rowToKontakt(r: any) {
 function rowToKomunikace(r: any) {
   return {
     id: r.id, firmaId: r.firma_id, kontaktId: r.kontakt_id, userId: r.user_id,
+    projektId: r.projekt_id ?? null,
     typ: r.typ, smer: r.smer, predmet: r.predmet, obsah: r.obsah, odpoved: r.odpoved,
     datum: r.datum ? new Date(r.datum) : null,
     createdAt: r.created_at ? new Date(r.created_at) : null,
@@ -43,12 +44,33 @@ function rowToKomunikace(r: any) {
 
 function rowToFollowup(r: any) {
   return {
-    id: r.id, firmaId: r.firma_id, userId: r.user_id, typ: r.typ, popis: r.popis,
+    id: r.id, firmaId: r.firma_id, userId: r.user_id, projektId: r.projekt_id ?? null,
+    typ: r.typ, popis: r.popis,
     datumPlan: r.datum_plan ? new Date(r.datum_plan) : new Date(),
     splneno: r.splneno, splnenoDate: r.splneno_date ? new Date(r.splneno_date) : null,
     priorita: r.priorita,
     createdAt: r.created_at ? new Date(r.created_at) : null,
   };
+}
+
+function rowToProjekt(r: any) {
+  return {
+    id: r.id, firmaId: r.firma_id, userId: r.user_id,
+    nazev: r.nazev, popis: r.popis, stav: r.stav,
+    hodnotaDealu: r.hodnota_dealu,
+    createdAt: r.created_at ? new Date(r.created_at) : null,
+  };
+}
+
+function projektToRow(data: any) {
+  const row: any = {};
+  if (data.firmaId !== undefined) row.firma_id = data.firmaId;
+  if (data.userId !== undefined) row.user_id = data.userId;
+  if (data.nazev !== undefined) row.nazev = data.nazev;
+  if (data.popis !== undefined) row.popis = data.popis;
+  if (data.stav !== undefined) row.stav = data.stav;
+  if (data.hodnotaDealu !== undefined) row.hodnota_dealu = data.hodnotaDealu;
+  return row;
 }
 
 function firmaToRow(data: any) {
@@ -88,6 +110,7 @@ function komunikaceToRow(data: any) {
   if (data.firmaId !== undefined) row.firma_id = data.firmaId;
   if (data.kontaktId !== undefined) row.kontakt_id = data.kontaktId;
   if (data.userId !== undefined) row.user_id = data.userId;
+  if (data.projektId !== undefined) row.projekt_id = data.projektId;
   if (data.typ !== undefined) row.typ = data.typ;
   if (data.smer !== undefined) row.smer = data.smer;
   if (data.predmet !== undefined) row.predmet = data.predmet;
@@ -101,6 +124,7 @@ function followupToRow(data: any) {
   const row: any = {};
   if (data.firmaId !== undefined) row.firma_id = data.firmaId;
   if (data.userId !== undefined) row.user_id = data.userId;
+  if (data.projektId !== undefined) row.projekt_id = data.projektId;
   if (data.typ !== undefined) row.typ = data.typ;
   if (data.popis !== undefined) row.popis = data.popis;
   if (data.datumPlan !== undefined) row.datum_plan = data.datumPlan instanceof Date ? data.datumPlan.toISOString() : data.datumPlan;
@@ -198,6 +222,7 @@ app.delete("/api/firmy/:id", async (req, res) => {
     await supabase.from("kontakty").delete().eq("firma_id", id);
     await supabase.from("komunikace").delete().eq("firma_id", id);
     await supabase.from("followupy").delete().eq("firma_id", id);
+    await supabase.from("projekty").delete().eq("firma_id", id);
     const { error } = await supabase.from("firmy").delete().eq("id", id);
     if (error) return res.status(404).json({ error: "Firma nenalezena" });
     return res.json({ success: true });
@@ -283,11 +308,79 @@ app.delete("/api/komunikace/:id", async (req, res) => {
   }
 });
 
+// Projekty
+app.get("/api/projekty", async (req, res) => {
+  try {
+    const firmaId = req.query.firmaId as string;
+    const userId = req.query.userId as string;
+    if (firmaId) {
+      const { data } = await supabase.from("projekty").select("*").eq("firma_id", firmaId).order("created_at", { ascending: false });
+      return res.json((data ?? []).map(rowToProjekt));
+    }
+    if (userId) {
+      const { data } = await supabase.from("projekty").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+      return res.json((data ?? []).map(rowToProjekt));
+    }
+    return res.status(400).json({ error: "firmaId or userId required" });
+  } catch (error) {
+    return res.status(500).json({ error: "Chyba při načítání projektů" });
+  }
+});
+
+app.get("/api/projekty/:id", async (req, res) => {
+  try {
+    const { data } = await supabase.from("projekty").select("*").eq("id", req.params.id).single();
+    if (!data) return res.status(404).json({ error: "Projekt nenalezen" });
+    return res.json(rowToProjekt(data));
+  } catch (error) {
+    return res.status(500).json({ error: "Chyba" });
+  }
+});
+
+app.post("/api/projekty", async (req, res) => {
+  try {
+    const row = projektToRow(req.body);
+    const { data, error } = await supabase.from("projekty").insert(row).select().single();
+    if (error) throw error;
+    return res.status(201).json(rowToProjekt(data));
+  } catch (error) {
+    return res.status(500).json({ error: "Nepodařilo se vytvořit projekt" });
+  }
+});
+
+app.patch("/api/projekty/:id", async (req, res) => {
+  try {
+    const row = projektToRow(req.body);
+    const { data, error } = await supabase.from("projekty").update(row).eq("id", req.params.id).select().single();
+    if (error) return res.status(404).json({ error: "Projekt nenalezen" });
+    return res.json(rowToProjekt(data));
+  } catch (error) {
+    return res.status(500).json({ error: "Nepodařilo se upravit projekt" });
+  }
+});
+
+app.delete("/api/projekty/:id", async (req, res) => {
+  try {
+    await supabase.from("followupy").delete().eq("projekt_id", req.params.id);
+    await supabase.from("komunikace").delete().eq("projekt_id", req.params.id);
+    const { error } = await supabase.from("projekty").delete().eq("id", req.params.id);
+    if (error) return res.status(404).json({ error: "Projekt nenalezen" });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Nepodařilo se smazat projekt" });
+  }
+});
+
 // Followupy
 app.get("/api/followupy", async (req, res) => {
   try {
     const userId = req.query.userId as string;
     const firmaId = req.query.firmaId as string;
+    const projektId = req.query.projektId as string;
+    if (projektId) {
+      const { data } = await supabase.from("followupy").select("*").eq("projekt_id", projektId).order("datum_plan", { ascending: true });
+      return res.json((data ?? []).map(rowToFollowup));
+    }
     if (firmaId) {
       const { data } = await supabase.from("followupy").select("*").eq("firma_id", firmaId).order("datum_plan", { ascending: true });
       return res.json((data ?? []).map(rowToFollowup));
@@ -296,7 +389,7 @@ app.get("/api/followupy", async (req, res) => {
       const { data } = await supabase.from("followupy").select("*").eq("user_id", userId).order("datum_plan", { ascending: true });
       return res.json((data ?? []).map(rowToFollowup));
     }
-    return res.status(400).json({ error: "userId or firmaId required" });
+    return res.status(400).json({ error: "userId, firmaId or projektId required" });
   } catch (error) {
     return res.status(500).json({ error: "Chyba" });
   }
@@ -343,6 +436,9 @@ app.get("/api/stats", async (req, res) => {
     const { data: firmyData } = await supabase.from("firmy").select("*").eq("user_id", userId).order("created_at", { ascending: false });
     const firmy = (firmyData ?? []).map(rowToFirma);
 
+    const { data: projektyData } = await supabase.from("projekty").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    const projekty = (projektyData ?? []).map(rowToProjekt);
+
     const { data: fuData } = await supabase.from("followupy").select("*").eq("user_id", userId).order("datum_plan", { ascending: true });
     const followupy = (fuData ?? []).map(rowToFollowup);
 
@@ -361,19 +457,19 @@ app.get("/api/stats", async (req, res) => {
       return d >= today && d <= in3Days;
     });
 
-    const stavDistribuce = firmy.reduce((acc: any, f: any) => {
-      acc[f.stav] = (acc[f.stav] || 0) + 1;
+    const stavDistribuce = projekty.reduce((acc: any, p: any) => {
+      acc[p.stav] = (acc[p.stav] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
-    const celkovaHodnota = firmy.reduce((s: number, f: any) => s + (f.hodnotaDealu ?? 0), 0);
-    const aktivniLeady = firmy.filter((f: any) => !["zakaznik", "nezajem"].includes(f.stav)).length;
+    const celkovaHodnota = projekty.reduce((s: number, p: any) => s + (p.hodnotaDealu ?? 0), 0);
+    const aktivniLeady = projekty.filter((p: any) => !["zakaznik", "nezajem"].includes(p.stav)).length;
 
     return res.json({
       celkemFirem: firmy.length,
       aktivniLeady,
       celkovaHodnota,
-      zakazniku: firmy.filter((f: any) => f.stav === "zakaznik").length,
+      zakazniku: projekty.filter((p: any) => p.stav === "zakaznik").length,
       stavDistribuce,
       prosleFU: prosleFU.length,
       dnesFU: dnesFU.length,

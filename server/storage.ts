@@ -3,6 +3,7 @@ import {
   type Kontakt, type InsertKontakt,
   type Komunikace, type InsertKomunikace,
   type Followup, type InsertFollowup,
+  type Projekt, type InsertProjekt,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
@@ -25,9 +26,17 @@ export interface IStorage {
 
   getFollowupy(userId: string): Promise<Followup[]>;
   getFollowupyByFirma(firmaId: string): Promise<Followup[]>;
+  getFollowupyByProjekt(projektId: string): Promise<Followup[]>;
   createFollowup(followup: InsertFollowup): Promise<Followup>;
   updateFollowup(id: string, data: Partial<InsertFollowup & { splneno?: boolean; splnenoDate?: Date | null }>): Promise<Followup | undefined>;
   deleteFollowup(id: string): Promise<boolean>;
+
+  getProjekty(firmaId: string): Promise<Projekt[]>;
+  getProjektyByUser(userId: string): Promise<Projekt[]>;
+  getProjekt(id: string): Promise<Projekt | undefined>;
+  createProjekt(projekt: InsertProjekt): Promise<Projekt>;
+  updateProjekt(id: string, data: Partial<InsertProjekt>): Promise<Projekt | undefined>;
+  deleteProjekt(id: string): Promise<boolean>;
 }
 
 // Helper: Supabase snake_case row → TypeScript camelCase
@@ -53,6 +62,7 @@ function rowToKontakt(r: any): Kontakt {
 function rowToKomunikace(r: any): Komunikace {
   return {
     id: r.id, firmaId: r.firma_id, kontaktId: r.kontakt_id, userId: r.user_id,
+    projektId: r.projekt_id ?? null,
     typ: r.typ, smer: r.smer, predmet: r.predmet, obsah: r.obsah, odpoved: r.odpoved,
     datum: r.datum ? new Date(r.datum) : null,
     createdAt: r.created_at ? new Date(r.created_at) : null,
@@ -61,12 +71,33 @@ function rowToKomunikace(r: any): Komunikace {
 
 function rowToFollowup(r: any): Followup {
   return {
-    id: r.id, firmaId: r.firma_id, userId: r.user_id, typ: r.typ, popis: r.popis,
+    id: r.id, firmaId: r.firma_id, userId: r.user_id, projektId: r.projekt_id ?? null,
+    typ: r.typ, popis: r.popis,
     datumPlan: r.datum_plan ? new Date(r.datum_plan) : new Date(),
     splneno: r.splneno, splnenoDate: r.splneno_date ? new Date(r.splneno_date) : null,
     priorita: r.priorita,
     createdAt: r.created_at ? new Date(r.created_at) : null,
   };
+}
+
+function rowToProjekt(r: any): Projekt {
+  return {
+    id: r.id, firmaId: r.firma_id, userId: r.user_id,
+    nazev: r.nazev, popis: r.popis, stav: r.stav,
+    hodnotaDealu: r.hodnota_dealu,
+    createdAt: r.created_at ? new Date(r.created_at) : null,
+  };
+}
+
+function projektToRow(data: Partial<InsertProjekt>): Record<string, any> {
+  const row: Record<string, any> = {};
+  if (data.firmaId !== undefined) row.firma_id = data.firmaId;
+  if (data.userId !== undefined) row.user_id = data.userId;
+  if (data.nazev !== undefined) row.nazev = data.nazev;
+  if (data.popis !== undefined) row.popis = data.popis;
+  if (data.stav !== undefined) row.stav = data.stav;
+  if (data.hodnotaDealu !== undefined) row.hodnota_dealu = data.hodnotaDealu;
+  return row;
 }
 
 // Helper: camelCase InsertFirma → snake_case for Supabase
@@ -107,6 +138,7 @@ function komunikaceToRow(data: Partial<InsertKomunikace>): Record<string, any> {
   if (data.firmaId !== undefined) row.firma_id = data.firmaId;
   if (data.kontaktId !== undefined) row.kontakt_id = data.kontaktId;
   if (data.userId !== undefined) row.user_id = data.userId;
+  if (data.projektId !== undefined) row.projekt_id = data.projektId;
   if (data.typ !== undefined) row.typ = data.typ;
   if (data.smer !== undefined) row.smer = data.smer;
   if (data.predmet !== undefined) row.predmet = data.predmet;
@@ -120,6 +152,7 @@ function followupToRow(data: Partial<InsertFollowup & { splneno?: boolean; splne
   const row: Record<string, any> = {};
   if (data.firmaId !== undefined) row.firma_id = data.firmaId;
   if (data.userId !== undefined) row.user_id = data.userId;
+  if (data.projektId !== undefined) row.projekt_id = data.projektId;
   if (data.typ !== undefined) row.typ = data.typ;
   if (data.popis !== undefined) row.popis = data.popis;
   if (data.datumPlan !== undefined) row.datum_plan = data.datumPlan instanceof Date ? data.datumPlan.toISOString() : data.datumPlan;
@@ -166,10 +199,11 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteFirma(id: string): Promise<boolean> {
-    // cascade: delete kontakty, komunikace, followupy for this firma
+    // cascade: delete kontakty, komunikace, followupy, projekty for this firma
     await this.supabase.from("kontakty").delete().eq("firma_id", id);
     await this.supabase.from("komunikace").delete().eq("firma_id", id);
     await this.supabase.from("followupy").delete().eq("firma_id", id);
+    await this.supabase.from("projekty").delete().eq("firma_id", id);
     const { error } = await this.supabase.from("firmy").delete().eq("id", id);
     return !error;
   }
@@ -261,8 +295,53 @@ export class SupabaseStorage implements IStorage {
     return data ? rowToFollowup(data) : undefined;
   }
 
+  async getFollowupyByProjekt(projektId: string): Promise<Followup[]> {
+    const { data } = await this.supabase
+      .from("followupy").select("*").eq("projekt_id", projektId).order("datum_plan", { ascending: true });
+    return (data ?? []).map(rowToFollowup);
+  }
+
   async deleteFollowup(id: string): Promise<boolean> {
     const { error } = await this.supabase.from("followupy").delete().eq("id", id);
+    return !error;
+  }
+
+  // ========== Projekty ==========
+  async getProjekty(firmaId: string): Promise<Projekt[]> {
+    const { data } = await this.supabase
+      .from("projekty").select("*").eq("firma_id", firmaId).order("created_at", { ascending: false });
+    return (data ?? []).map(rowToProjekt);
+  }
+
+  async getProjektyByUser(userId: string): Promise<Projekt[]> {
+    const { data } = await this.supabase
+      .from("projekty").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    return (data ?? []).map(rowToProjekt);
+  }
+
+  async getProjekt(id: string): Promise<Projekt | undefined> {
+    const { data } = await this.supabase.from("projekty").select("*").eq("id", id).single();
+    return data ? rowToProjekt(data) : undefined;
+  }
+
+  async createProjekt(insertData: InsertProjekt): Promise<Projekt> {
+    const row = projektToRow(insertData);
+    const { data, error } = await this.supabase.from("projekty").insert(row).select().single();
+    if (error) throw new Error(`Failed to create projekt: ${error.message}`);
+    return rowToProjekt(data);
+  }
+
+  async updateProjekt(id: string, updates: Partial<InsertProjekt>): Promise<Projekt | undefined> {
+    const row = projektToRow(updates);
+    const { data, error } = await this.supabase.from("projekty").update(row).eq("id", id).select().single();
+    if (error) return undefined;
+    return data ? rowToProjekt(data) : undefined;
+  }
+
+  async deleteProjekt(id: string): Promise<boolean> {
+    await this.supabase.from("followupy").delete().eq("projekt_id", id);
+    await this.supabase.from("komunikace").delete().eq("projekt_id", id);
+    const { error } = await this.supabase.from("projekty").delete().eq("id", id);
     return !error;
   }
 }

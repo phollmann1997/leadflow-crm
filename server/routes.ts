@@ -131,14 +131,68 @@ export async function registerRoutes(
     }
   });
 
+  // Projekty
+  app.get("/api/projekty", async (req, res) => {
+    try {
+      const firmaId = req.query.firmaId as string;
+      const userId = req.query.userId as string;
+      if (firmaId) return res.json(await storage.getProjekty(firmaId));
+      if (userId) return res.json(await storage.getProjektyByUser(userId));
+      return res.status(400).json({ error: "firmaId or userId required" });
+    } catch (error) {
+      return res.status(500).json({ error: "Chyba při načítání projektů" });
+    }
+  });
+
+  app.get("/api/projekty/:id", async (req, res) => {
+    try {
+      const projekt = await storage.getProjekt(req.params.id);
+      if (!projekt) return res.status(404).json({ error: "Projekt nenalezen" });
+      return res.json(projekt);
+    } catch (error) {
+      return res.status(500).json({ error: "Chyba" });
+    }
+  });
+
+  app.post("/api/projekty", async (req, res) => {
+    try {
+      const projekt = await storage.createProjekt(req.body);
+      return res.status(201).json(projekt);
+    } catch (error) {
+      return res.status(500).json({ error: "Nepodařilo se vytvořit projekt" });
+    }
+  });
+
+  app.patch("/api/projekty/:id", async (req, res) => {
+    try {
+      const projekt = await storage.updateProjekt(req.params.id, req.body);
+      if (!projekt) return res.status(404).json({ error: "Projekt nenalezen" });
+      return res.json(projekt);
+    } catch (error) {
+      return res.status(500).json({ error: "Nepodařilo se upravit projekt" });
+    }
+  });
+
+  app.delete("/api/projekty/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteProjekt(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Projekt nenalezen" });
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(500).json({ error: "Nepodařilo se smazat projekt" });
+    }
+  });
+
   // Followupy
   app.get("/api/followupy", async (req, res) => {
     try {
       const userId = req.query.userId as string;
       const firmaId = req.query.firmaId as string;
+      const projektId = req.query.projektId as string;
+      if (projektId) return res.json(await storage.getFollowupyByProjekt(projektId));
       if (firmaId) return res.json(await storage.getFollowupyByFirma(firmaId));
       if (userId) return res.json(await storage.getFollowupy(userId));
-      return res.status(400).json({ error: "userId or firmaId required" });
+      return res.status(400).json({ error: "userId, firmaId or projektId required" });
     } catch (error) {
       return res.status(500).json({ error: "Chyba" });
     }
@@ -178,8 +232,9 @@ export async function registerRoutes(
       const userId = req.query.userId as string;
       if (!userId) return res.status(400).json({ error: "userId required" });
       const firmy = await storage.getFirmy(userId);
+      const projekty = await storage.getProjektyByUser(userId);
       const followupy = await storage.getFollowupy(userId);
-      
+
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const in3Days = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
@@ -195,19 +250,19 @@ export async function registerRoutes(
         return d >= today && d <= in3Days;
       });
 
-      const stavDistribuce = firmy.reduce((acc, f) => {
-        acc[f.stav] = (acc[f.stav] || 0) + 1;
+      const stavDistribuce = projekty.reduce((acc, p) => {
+        acc[p.stav] = (acc[p.stav] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      const celkovaHodnota = firmy.reduce((s, f) => s + (f.hodnotaDealu ?? 0), 0);
-      const aktivniLeady = firmy.filter(f => !["zakaznik", "nezajem"].includes(f.stav)).length;
+      const celkovaHodnota = projekty.reduce((s, p) => s + (p.hodnotaDealu ?? 0), 0);
+      const aktivniLeady = projekty.filter(p => !["zakaznik", "nezajem"].includes(p.stav)).length;
 
       return res.json({
         celkemFirem: firmy.length,
         aktivniLeady,
         celkovaHodnota,
-        zakazniku: firmy.filter(f => f.stav === "zakaznik").length,
+        zakazniku: projekty.filter(p => p.stav === "zakaznik").length,
         stavDistribuce,
         prosleFU: prosleFU.length,
         dnesFU: dnesFU.length,
